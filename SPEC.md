@@ -58,11 +58,34 @@ Until then, the legacy project and its database are left untouched.
     is_returning, status)
 - All time-based analysis is done in **America/Toronto** local time,
   converted from the stored UTC timestamps at query/analysis time.
-- **Daytime window:** 6:00am–11:59pm local time ("cycling hours").
-  Overnight snapshots (midnight–6am) are excluded from all classification,
-  histograms, and heatmaps.
+- **Daytime window:** 6:00am through midnight, **inclusive** — i.e. up
+  through and including 11:59:59pm, the moment just before the clock
+  rolls over. Overnight snapshots (midnight–6am) are excluded from all
+  classification and histograms.
+- **Skip snapshots from stations not actually renting/returning:** if a
+  station reports `is_renting = false` or `is_returning = false`, the
+  poller does not store a snapshot for it that cycle — these represent a
+  station temporarily out of service (e.g. under maintenance), not real
+  availability data.
+- **Skip stale readings:** each station's `last_reported` field reflects
+  when the station itself last communicated with Bike Share Toronto's
+  backend — independent of when we polled. If `last_reported` is more
+  than 1 hour old at poll time, the snapshot is skipped rather than
+  stored. Without this check, a station stuck not-reporting for hours
+  would have its one real last-known reading recorded over and over as
+  if it were fresh new observations, skewing its historical distribution
+  toward whatever state it happened to be stuck in.
 
 ## 4. Classification System
+
+**Stations with `capacity <= 0` are excluded entirely** — from
+classification, the map, and dashboard rankings. This is a
+data-quality guard: the legacy dataset already has a real example
+(station 7442, Lonsdale Rd / Spadina Rd) that the feed reports as
+`IN_SERVICE` and actively renting/returning, but with capacity 0 — almost
+certainly a missing-data artifact in the feed rather than a genuine
+zero-dock station. A capacity of 0 would otherwise force every snapshot
+into "No Spaces" regardless of actual bikes/docks, which is misleading.
 
 Every daytime snapshot is classified into exactly one of 5 **absolute**
 bands, based on raw bike/dock counts (not percentile rank across stations):
@@ -96,27 +119,33 @@ any ranking or the map, to avoid noisy single-observation results.
   - A histogram: x-axis = bike count from 0 to the station's capacity;
     y-axis = number of daytime hours observed at that exact count. Each
     bar is colored using the same band classification applied to that
-    x-axis value (e.g. the bar at "0 bikes" is dark red).
-  - Only daytime (6am–midnight) snapshots feed this histogram.
-  - A per-station hour × day-of-week heatmap (see §6).
+    x-axis value (e.g. the bar at "0 bikes" is dark red), and labeled
+    with its raw observation count (number of hours) directly above the
+    bar.
+  - Only daytime (6am–midnight, inclusive) snapshots feed this histogram.
 
 ## 6. Dashboard (Landing Page)
 
 - **Band histogram:** 5 bars, one per band, height = number of stations
   whose *mode* band is that one. Gives an at-a-glance system health view.
-- **Worst for empty:** ranked list of stations by how often they land in
-  the "No Bikes" / "Limited Bikes" bands (top N, e.g. 15).
-- **Worst for full:** ranked list of stations by how often they land in
-  "No Spaces" / "Limited Spaces" (top N).
-- **System-wide hour × day-of-week heatmap:** aggregated across all
-  stations — reveals patterns like "system-wide, weekday mornings around
-  8am are the worst time for bike availability."
-- **Per-station hour × day-of-week heatmap:** available when drilling
-  into an individual station (reachable from the worst-of lists or the
-  map popup) — same idea, scoped to one station.
+- **"Most Empty Stations":** ranked list of stations by how often they
+  land in the "No Bikes" / "Limited Bikes" bands (top N, e.g. 15).
+- **"Most Full Stations":** ranked list of stations by how often they
+  land in "No Spaces" / "Limited Spaces" (top N).
+- **"Worst of the worst" histogram:** distribution of stations by what
+  percent of their daytime snapshots landed in the "No Bikes" band
+  (`bikes_available <= 1`). Bucketed in 10% increments — `>90%`,
+  `80–90%`, `70–80%`, `60–70%`, `50–60%`, `40–50%`, `30–40%`, `20–30%`,
+  `10–20%`, `0–10%` — ordered left-to-right from most-chronically-empty
+  to least. Bar height = number of stations falling in that bucket.
+  Surfaces the handful of stations that are essentially *always* empty,
+  not just "often" empty — a sharper cut than the ranked list above.
 - Each list/summary should show total station count and the "since"
   earliest snapshot date, so viewers understand how much data backs the
   numbers (a fresh deployment will have thin history at first).
+
+Note: the hour × day-of-week heatmaps (both system-wide and per-station)
+originally planned here are cut from v1 — may revisit later.
 
 ## 7. Tech Stack
 
@@ -125,8 +154,7 @@ any ranking or the map, to avoid noisy single-observation results.
   one hourly batch insert — and read-mostly query pattern)
 - **Frontend:** Jinja2-rendered templates + vanilla JS; Leaflet.js for
   the map; a lightweight charting approach (plain Canvas/SVG or a small
-  library) for histograms and the heatmap — finalized during
-  implementation.
+  library) for histograms — finalized during implementation.
 
 ## 8. Hosting & Deployment
 
@@ -138,7 +166,11 @@ any ranking or the map, to avoid noisy single-observation results.
 - Web app served as a PythonAnywhere Flask web app (WSGI).
 - Poller run via PythonAnywhere's built-in **Scheduled Tasks** (hourly),
   not an always-on process.
-- **Domain:** free `yourusername.pythonanywhere.com` subdomain to start.
+- **Domain:** free `yourusername.pythonanywhere.com` subdomain to start,
+  with this app served under a path prefix — **`/BikeShareUtility`**
+  (e.g. `yourusername.pythonanywhere.com/BikeShareUtility/`) — rather
+  than at the subdomain root, so other future projects can live at other
+  paths on the same account without conflicting.
   A custom domain is possible later but requires PythonAnywhere's higher
   "Web Developer" tier (~$12/month) plus purchasing a domain (~$10–15/yr).
 - Exact current PythonAnywhere pricing/plan features should be
