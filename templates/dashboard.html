@@ -11,8 +11,8 @@
 <header>
     <h1>Bike Share Station Utility</h1>
     <nav>
-        <a href="/" class="active">Dashboard</a>
-        <a href="/map">Map</a>
+        <a href="{{ url_for('dashboard') }}" class="active">Dashboard</a>
+        <a href="{{ url_for('utility_map') }}">Map</a>
     </nav>
 </header>
 
@@ -50,6 +50,8 @@
 </main>
 
 <script>
+const SCRIPT_ROOT = "{{ request.script_root }}";
+
 function barChart(container, items, opts) {
     opts = opts || {};
     const maxCount = Math.max(1, ...items.map(i => i.count));
@@ -78,7 +80,7 @@ function barChart(container, items, opts) {
     });
 }
 
-fetch("/api/summary")
+fetch(SCRIPT_ROOT + "/api/summary")
     .then(r => r.json())
     .then(data => {
         const since = data.earliest_date ? `Tracking ${data.total_stations} stations since ${data.earliest_date}.` : `Tracking ${data.total_stations} stations. No data yet.`;

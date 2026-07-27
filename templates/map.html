@@ -12,8 +12,8 @@
 <header>
     <h1>Bike Share Station Utility</h1>
     <nav>
-        <a href="/">Dashboard</a>
-        <a href="/map" class="active">Map</a>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('utility_map') }}" class="active">Map</a>
     </nav>
 </header>
 
@@ -21,6 +21,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+const SCRIPT_ROOT = "{{ request.script_root }}";
 const map = L.map("map").setView([43.6532, -79.3832], 12);
 
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -75,7 +76,7 @@ function buildPopupContent(station) {
     return container;
 }
 
-fetch("/api/utility_map")
+fetch(SCRIPT_ROOT + "/api/utility_map")
     .then(r => r.json())
     .then(data => {
         data.stations.forEach(station => {
@@ -90,7 +91,7 @@ fetch("/api/utility_map")
             marker.bindPopup(() => buildPopupContent(station));
 
             marker.on("popupopen", () => {
-                fetch(`/api/station_histogram/${station.station_id}`)
+                fetch(`${SCRIPT_ROOT}/api/station_histogram/${station.station_id}`)
                     .then(r => r.json())
                     .then(hist => {
                         const target = document.getElementById(`hist-${station.station_id}`);
