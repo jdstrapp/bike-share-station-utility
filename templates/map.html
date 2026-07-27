@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike Share Station Utility - Map</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Bike Share Station Utility</h1>
+    <nav>
+        <a href="/">Dashboard</a>
+        <a href="/map" class="active">Map</a>
+    </nav>
+</header>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map("map").setView([43.6532, -79.3832], 12);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 19,
+}).addTo(map);
+
+const legend = L.control({ position: "bottomright" });
+legend.onAdd = function () {
+    const div = L.DomUtil.create("div", "legend");
+    div.innerHTML = `
+        <div><span class="swatch" style="background:#dc2626"></span>No Bikes</div>
+        <div><span class="swatch" style="background:#f97316"></span>Limited Bikes</div>
+        <div><span class="swatch" style="background:#16a34a"></span>Just Right</div>
+        <div><span class="swatch" style="background:#93c5fd"></span>Limited Spaces</div>
+        <div><span class="swatch" style="background:#1e40af"></span>No Spaces</div>
+    `;
+    return div;
+};
+legend.addTo(map);
+
+const POPUP_HISTOGRAM_SCROLL_THRESHOLD = 25;
+
+function popupHistogram(bars) {
+    const maxHours = Math.max(1, ...bars.map(b => b.hours));
+    const scrollable = bars.length > POPUP_HISTOGRAM_SCROLL_THRESHOLD;
+    let html = `<div class="popup-histogram${scrollable ? " scrollable" : ""}">`;
+    bars.forEach(b => {
+        const h = Math.max(1, (b.hours / maxHours) * 100);
+        html += `
+            <div class="bar-col">
+                <div class="bar-count">${b.hours}</div>
+                <div class="bar" style="height:${h}%;background:${b.color}"></div>
+                <div class="bar-x">${b.bikes}</div>
+            </div>`;
+    });
+    html += "</div>";
+    return html;
+}
+
+function buildPopupContent(station) {
+    const container = document.createElement("div");
+    container.innerHTML = `
+        <strong>${station.name}</strong><br>
+        <span style="font-size:0.8rem;color:#64748b;">
+            Usually: ${station.band_label} (${station.mode_pct}% of the time, n=${station.n_daytime_snapshots})
+        </span>
+        <div id="hist-${station.station_id}" style="margin-top:0.5rem;">
+            <div class="loading">Loading histogram...</div>
+        </div>
+    `;
+    return container;
+}
+
+fetch("/api/utility_map")
+    .then(r => r.json())
+    .then(data => {
+        data.stations.forEach(station => {
+            const marker = L.circleMarker([station.lat, station.lon], {
+                radius: 6,
+                fillColor: station.color,
+                color: "#1f2937",
+                weight: 1,
+                fillOpacity: 0.9,
+            }).addTo(map);
+
+            marker.bindPopup(() => buildPopupContent(station));
+
+            marker.on("popupopen", () => {
+                fetch(`/api/station_histogram/${station.station_id}`)
+                    .then(r => r.json())
+                    .then(hist => {
+                        const target = document.getElementById(`hist-${station.station_id}`);
+                        if (!target) return;
+                        if (!hist.bars || hist.bars.length === 0) {
+                            target.innerHTML = '<div class="empty-state">No histogram data.</div>';
+                            return;
+                        }
+                        target.innerHTML = popupHistogram(hist.bars);
+                    });
+            });
+        });
+    })
+    .catch(err => console.error(err));
+</script>
+
+</body>
+</html>

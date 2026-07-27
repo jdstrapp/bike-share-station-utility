@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike Share Station Utility</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<header>
+    <h1>Bike Share Station Utility</h1>
+    <nav>
+        <a href="/" class="active">Dashboard</a>
+        <a href="/map">Map</a>
+    </nav>
+</header>
+
+<main>
+    <p class="subtitle" id="subtitle">Loading...</p>
+
+    <div class="card">
+        <h2>Status Utility Summary</h2>
+        <p class="subtitle" style="margin-bottom:0.75rem;">Each station counted by the band it's in <em>most often</em> across its history.</p>
+        <div class="bar-chart" id="band-histogram"><div class="loading">Loading...</div></div>
+    </div>
+
+    <div class="card">
+        <h2>Distribution of Empty Stations</h2>
+        <p class="subtitle" style="margin-bottom:0.75rem;">Stations by percent of daytime hours spent with 0-1 bikes available.</p>
+        <div class="bar-chart" id="empty-distribution-histogram"><div class="loading">Loading...</div></div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2>Most Empty Stations</h2>
+            <table id="most-empty-table">
+                <thead><tr><th>Station</th><th>% Time Empty</th><th>N</th></tr></thead>
+                <tbody><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+            </table>
+        </div>
+        <div class="card">
+            <h2>Most Full Stations</h2>
+            <table id="most-full-table">
+                <thead><tr><th>Station</th><th>% Time Full</th><th>N</th></tr></thead>
+                <tbody><tr><td colspan="3" class="loading">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+function barChart(container, items, opts) {
+    opts = opts || {};
+    const maxCount = Math.max(1, ...items.map(i => i.count));
+    container.innerHTML = "";
+    items.forEach(item => {
+        const col = document.createElement("div");
+        col.className = "bar-col";
+
+        const countLabel = document.createElement("div");
+        countLabel.className = "bar-count";
+        countLabel.textContent = item.count;
+
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        bar.style.height = Math.max(2, (item.count / maxCount) * 100) + "%";
+        bar.style.background = item.color || "#3b82f6";
+
+        const label = document.createElement("div");
+        label.className = "bar-label";
+        label.textContent = item.label;
+
+        col.appendChild(countLabel);
+        col.appendChild(bar);
+        col.appendChild(label);
+        container.appendChild(col);
+    });
+}
+
+fetch("/api/summary")
+    .then(r => r.json())
+    .then(data => {
+        const since = data.earliest_date ? `Tracking ${data.total_stations} stations since ${data.earliest_date}.` : `Tracking ${data.total_stations} stations. No data yet.`;
+        document.getElementById("subtitle").textContent = since;
+
+        barChart(document.getElementById("band-histogram"), data.band_histogram.map(b => ({
+            label: b.label, count: b.count, color: b.color
+        })));
+
+        barChart(document.getElementById("empty-distribution-histogram"), data.empty_distribution_histogram.map(b => ({
+            label: b.label, count: b.count, color: "#dc2626"
+        })));
+
+        fillTable("most-empty-table", data.most_empty_stations, "pct_no_bikes");
+        fillTable("most-full-table", data.most_full_stations, "pct_no_spaces");
+    })
+    .catch(err => {
+        document.getElementById("subtitle").textContent = "Failed to load data.";
+        console.error(err);
+    });
+
+function fillTable(tableId, rows, pctKey) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    tbody.innerHTML = "";
+    if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No stations with enough data yet.</td></tr>';
+        return;
+    }
+    rows.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${r.name}</td><td>${r[pctKey]}%</td><td>${r.n_daytime_snapshots}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+</script>
+
+</body>
+</html>
