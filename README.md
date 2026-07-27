@@ -13,11 +13,13 @@ Spec complete. Implementation in progress.
 ## Project layout (planned)
 
 ```
-poll_stations.py   # hourly GBFS poller -> bikeshare.db
-app.py              # Flask app: dashboard + map + JSON APIs
-templates/          # Jinja2 templates (dashboard.html, map.html)
-static/             # JS/CSS assets
-bikeshare.db        # SQLite database (not committed; created at runtime)
+poll_stations.py       # hourly GBFS poller -> bikeshare.db
+import_legacy_data.py  # one-time (re-runnable) import from the earlier
+                        # bikeshare-tracker prototype's collected data
+app.py                  # Flask app: dashboard + map + JSON APIs
+templates/               # Jinja2 templates (dashboard.html, map.html)
+static/                  # JS/CSS assets
+bikeshare.db             # SQLite database (not committed; created at runtime)
 ```
 
 ## Local development

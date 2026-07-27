@@ -26,12 +26,21 @@ Bike Share Toronto's public GBFS (General Bikeshare Feed Specification) feed:
 - `station_status`: https://tor.publicbikesystem.net/ube/gbfs/v1/en/station_status
   (live: bikes_available, docks_available, is_renting, is_returning, status)
 
-**No historical backfill.** Toronto's Open Data portal only publishes
-trip-level ridership data (individual trips: start/end station, start/end
-time, duration), not point-in-time station occupancy history. GBFS itself
-is a live-only feed with no historical archive. Confirmed decision:
-**poll-forward only** — history accumulates starting from deployment day,
-no attempt to reconstruct or simulate the past from trip data.
+**No official historical archive.** Toronto's Open Data portal only
+publishes trip-level ridership data (individual trips: start/end station,
+start/end time, duration), not point-in-time station occupancy history.
+GBFS itself is a live-only feed with no historical archive of its own.
+
+**But: self-collected head start.** An earlier prototype has been polling
+this same feed hourly since 2026-07-22 and is still running, currently at
+105,329+ status snapshots across 1,054 stations. That data's schema
+(`stations` / `status_snapshots`) matches this project's needs exactly,
+so at **cutover time** (once this project's own app is built and ready to
+go live) it will be imported wholesale via `import_legacy_data.py` —
+written now, but deliberately not run yet. The script is safe to re-run
+(deduplicates on `(station_id, polled_at)`), so the legacy poller can
+keep collecting right up until cutover without any risk of double-import.
+Until then, the legacy project and its database are left untouched.
 
 ## 3. Data Collection
 
@@ -140,12 +149,19 @@ any ranking or the map, to avoid noisy single-observation results.
 
 - GitHub repo: `bike-share-station-utility`, **public** visibility.
 - Local path: sibling folder to the earlier `bikeshare-tracker`
-  prototype (this is a fresh project, not a continuation of that code).
+  prototype. This is a fresh codebase, not a continuation of that
+  project's code — but its `stations` / `status_snapshots` schema was
+  reused as-is since it already matched this project's needs, and its
+  collected data will be imported at cutover time (§2).
+- The legacy `bikeshare-tracker` project and its database are left
+  running and untouched until cutover. Once this project's own poller is
+  deployed and confirmed working, run `import_legacy_data.py` one final
+  time to pull in everything collected up to that point, then stop the
+  legacy poller to avoid two processes polling the same feed
+  independently.
 
 ## 10. Explicitly Out of Scope (v1)
 
-- Historical backfill/import of pre-launch occupancy data (no source
-  data exists for this).
 - Multi-city / multi-system support.
 - User accounts, personalization, alerts/notifications.
 - A live "right now" single-moment status view (focus is historical
