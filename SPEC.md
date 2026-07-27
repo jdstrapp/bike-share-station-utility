@@ -123,17 +123,27 @@ any ranking or the map, to avoid noisy single-observation results.
     with its raw observation count (number of hours) directly above the
     bar.
   - Only daytime (6am–midnight, inclusive) snapshots feed this histogram.
+  - **Large-capacity stations:** the popup has a fixed display width of
+    25 bars. For stations with capacity > 25, the histogram truncates to
+    a scrollable/slider view instead of squeezing all bars into the same
+    width — keeps individual bars readable regardless of station size.
 
 ## 6. Dashboard (Landing Page)
 
-- **Band histogram:** 5 bars, one per band, height = number of stations
-  whose *mode* band is that one. Gives an at-a-glance system health view.
-- **"Most Empty Stations":** ranked list of stations by how often they
-  land in the "No Bikes" / "Limited Bikes" bands (top N, e.g. 15).
-- **"Most Full Stations":** ranked list of stations by how often they
-  land in "No Spaces" / "Limited Spaces" (top N).
-- **"Worst of the worst" histogram:** distribution of stations by what
-  percent of their daytime snapshots landed in the "No Bikes" band
+- **"Status Utility Summary" (band histogram):** 5 bars, one per band,
+  height = number of stations whose *mode* band is that one. Gives an
+  at-a-glance system health view.
+- **"Most Empty Stations":** ranked list of stations by percent of
+  daytime snapshots in the "No Bikes" band (`bikes_available <= 1`) —
+  matches the same threshold as the "Worst of the Worst" histogram
+  below, so a station ranks consistently across both views. Column
+  titled **"% Time Empty"** (top N, e.g. 15).
+- **"Most Full Stations":** ranked list of stations by percent of
+  daytime snapshots in the "No Spaces" band (`docks_available <= 1`).
+  Column titled **"% Time Full"** (top N).
+- **"Distribution of Empty Stations" histogram:** how many stations fall
+  into each bucket of what percent of their daytime snapshots landed in
+  the "No Bikes" band
   (`bikes_available <= 1`). Bucketed in 10% increments — `>90%`,
   `80–90%`, `70–80%`, `60–70%`, `50–60%`, `40–50%`, `30–40%`, `20–30%`,
   `10–20%`, `0–10%` — ordered left-to-right from most-chronically-empty
@@ -191,6 +201,16 @@ originally planned here are cut from v1 — may revisit later.
   time to pull in everything collected up to that point, then stop the
   legacy poller to avoid two processes polling the same feed
   independently.
+- **Accepted tradeoff during the overlap period:** while both pollers
+  run in parallel (legacy hourly poll + this project's new production
+  poll), they'll each record their own snapshot at slightly different
+  timestamps for what's roughly the same real-world hour. The
+  `(station_id, polled_at)` dedup key won't catch these as true
+  duplicates (the timestamps differ), so the merged history will have
+  some near-duplicate/overlapping observations for that window. This is
+  accepted as a minor, temporary data-quality wrinkle rather than
+  something engineered around — it goes away once the legacy poller is
+  stopped.
 
 ## 10. Explicitly Out of Scope (v1)
 
