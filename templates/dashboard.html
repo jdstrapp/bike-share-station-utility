@@ -12,7 +12,8 @@
     <h1>Bike Share Station Utility</h1>
     <nav>
         <a href="{{ url_for('dashboard') }}" class="active">Dashboard</a>
-        <a href="{{ url_for('utility_map') }}">Map</a>
+        <a href="{{ url_for('utility_map') }}">Utility Map</a>
+        <a href="{{ url_for('empty_station_map') }}">Empty Station Map</a>
     </nav>
 </header>
 
@@ -20,7 +21,7 @@
     <p class="subtitle" id="subtitle">Loading...</p>
 
     <div class="card">
-        <h2>Status Utility Summary</h2>
+        <h2>Station Utility Summary</h2>
         <p class="subtitle" style="margin-bottom:0.75rem;">Each station counted by the band it's in <em>most often</em> across its history.</p>
         <div class="bar-chart" id="band-histogram"><div class="loading">Loading...</div></div>
     </div>
@@ -91,7 +92,7 @@ fetch(SCRIPT_ROOT + "/api/summary")
         })));
 
         barChart(document.getElementById("empty-distribution-histogram"), data.empty_distribution_histogram.map(b => ({
-            label: b.label, count: b.count, color: "#dc2626"
+            label: b.label, count: b.count, color: b.color
         })));
 
         fillTable("most-empty-table", data.most_empty_stations, "pct_no_bikes");

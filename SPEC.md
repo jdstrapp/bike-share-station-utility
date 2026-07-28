@@ -108,7 +108,12 @@ across all its daytime snapshots collected so far. Stations need a
 minimum sample size (5+ daytime snapshots) before they're included in
 any ranking or the map, to avoid noisy single-observation results.
 
-## 5. Map Page
+## 5. Map Pages
+
+Nav bar has three items: **Dashboard**, **Utility Map**, **Empty Station
+Map**.
+
+### 5a. Utility Map (`/map`)
 
 - One marker per station, placed at its lat/lon, colored by its mode
   band (table above).
@@ -128,9 +133,27 @@ any ranking or the map, to avoid noisy single-observation results.
     a scrollable/slider view instead of squeezing all bars into the same
     width — keeps individual bars readable regardless of station size.
 
+### 5b. Empty Station Map (`/empty-map`)
+
+A second map, focused specifically on chronically-empty stations rather
+than the full 5-band picture.
+
+- Same Leaflet renderer, same base tiles.
+- Each station colored by the **dark-red-to-orange gradient** (§6) based
+  on what percent of its daytime snapshots landed in the "No Bikes" band
+  (`bikes_available <= 1`) — same 6 severity buckets as the Distribution
+  of Empty Stations histogram (`>90%` down to `40-50%`).
+- **Stations below the 40% threshold** (i.e. not chronically empty
+  enough to land in any of the 6 buckets) are rendered as **white-filled
+  circles** with the same dark outline as colored markers — still
+  visible/located on the map, but visually distinct from the gradient,
+  so the chronically-empty stations pop out.
+- Clicking a marker opens the same popup style as the Utility Map
+  (station name + per-station histogram).
+
 ## 6. Dashboard (Landing Page)
 
-- **"Status Utility Summary" (band histogram):** 5 bars, one per band,
+- **"Station Utility Summary" (band histogram):** 5 bars, one per band,
   height = number of stations whose *mode* band is that one. Gives an
   at-a-glance system health view.
 - **"Most Empty Stations":** ranked list of stations by percent of
@@ -143,13 +166,17 @@ any ranking or the map, to avoid noisy single-observation results.
   Column titled **"% Time Full"** (top N).
 - **"Distribution of Empty Stations" histogram:** how many stations fall
   into each bucket of what percent of their daytime snapshots landed in
-  the "No Bikes" band
-  (`bikes_available <= 1`). Bucketed in 10% increments — `>90%`,
-  `80–90%`, `70–80%`, `60–70%`, `50–60%`, `40–50%`, `30–40%`, `20–30%`,
-  `10–20%`, `0–10%` — ordered left-to-right from most-chronically-empty
-  to least. Bar height = number of stations falling in that bucket.
-  Surfaces the handful of stations that are essentially *always* empty,
-  not just "often" empty — a sharper cut than the ranked list above.
+  the "No Bikes" band (`bikes_available <= 1`). **Only shows the 6
+  buckets from `>90%` down to `40-50%`** — stations below the 40%
+  threshold are dropped from this chart entirely (they still count
+  everywhere else, just not here). Ordered left-to-right from
+  most-chronically-empty to least. Bar height = number of stations
+  falling in that bucket, colored with a **dark-red-to-orange gradient**
+  (darkest red at `>90%`, fading to orange at `40-50%`) rather than a
+  single flat color — the same gradient/bucketing is reused for the
+  Empty Station Map (§5b). Surfaces the handful of stations that are
+  essentially *always* empty, not just "often" empty — a sharper cut
+  than the ranked list above.
 - Each list/summary should show total station count and the "since"
   earliest snapshot date, so viewers understand how much data backs the
   numbers (a fresh deployment will have thin history at first).

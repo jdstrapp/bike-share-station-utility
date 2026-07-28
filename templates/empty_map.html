@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Bike Share Station Utility - Map</title>
+<title>Bike Share Station Utility - Empty Station Map</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -13,8 +13,8 @@
     <h1>Bike Share Station Utility</h1>
     <nav>
         <a href="{{ url_for('dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('utility_map') }}" class="active">Utility Map</a>
-        <a href="{{ url_for('empty_station_map') }}">Empty Station Map</a>
+        <a href="{{ url_for('utility_map') }}">Utility Map</a>
+        <a href="{{ url_for('empty_station_map') }}" class="active">Empty Station Map</a>
     </nav>
 </header>
 
@@ -30,25 +30,9 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
 }).addTo(map);
 
-const legend = L.control({ position: "bottomright" });
-legend.onAdd = function () {
-    const div = L.DomUtil.create("div", "legend");
-    div.innerHTML = `
-        <div><span class="swatch" style="background:#dc2626"></span>No Bikes</div>
-        <div><span class="swatch" style="background:#f97316"></span>Limited Bikes</div>
-        <div><span class="swatch" style="background:#16a34a"></span>Just Right</div>
-        <div><span class="swatch" style="background:#93c5fd"></span>Limited Spaces</div>
-        <div><span class="swatch" style="background:#1e40af"></span>No Spaces</div>
-    `;
-    return div;
-};
-legend.addTo(map);
-
-const POPUP_HISTOGRAM_SCROLL_THRESHOLD = 25;
-
 function popupHistogram(bars) {
     const maxHours = Math.max(1, ...bars.map(b => b.hours));
-    const scrollable = bars.length > POPUP_HISTOGRAM_SCROLL_THRESHOLD;
+    const scrollable = bars.length > 25;
     let html = `<div class="popup-histogram${scrollable ? " scrollable" : ""}">`;
     bars.forEach(b => {
         const h = Math.max(1, (b.hours / maxHours) * 100);
@@ -68,7 +52,7 @@ function buildPopupContent(station) {
     container.innerHTML = `
         <strong>${station.name}</strong><br>
         <span style="font-size:0.8rem;color:#64748b;">
-            Usually: ${station.band_label} (${station.mode_pct}% of the time, n=${station.n_daytime_snapshots})
+            Empty (0-1 bikes) ${station.pct_no_bikes}% of the time (n=${station.n_daytime_snapshots})
         </span>
         <div id="hist-${station.station_id}" style="margin-top:0.5rem;">
             <div class="loading">Loading histogram...</div>
@@ -80,13 +64,27 @@ function buildPopupContent(station) {
 fetch(SCRIPT_ROOT + "/api/utility_map")
     .then(r => r.json())
     .then(data => {
+        const legend = L.control({ position: "bottomright" });
+        legend.onAdd = function () {
+            const div = L.DomUtil.create("div", "legend");
+            let html = "";
+            data.empty_bucket_labels.forEach((label, i) => {
+                html += `<div><span class="swatch" style="background:${data.empty_gradient_colors[i]}"></span>${label}</div>`;
+            });
+            html += `<div><span class="swatch" style="background:${data.empty_below_threshold_color};border:1px solid #94a3b8;"></span>&lt;40% (not chronically empty)</div>`;
+            div.innerHTML = html;
+            return div;
+        };
+        legend.addTo(map);
+
         data.stations.forEach(station => {
+            const isBelowThreshold = !station.empty_gradient_color;
             const marker = L.circleMarker([station.lat, station.lon], {
                 radius: 6,
-                fillColor: station.color,
+                fillColor: station.empty_gradient_color || data.empty_below_threshold_color,
                 color: "#1f2937",
                 weight: 1,
-                fillOpacity: 0.9,
+                fillOpacity: isBelowThreshold ? 0.9 : 0.95,
             }).addTo(map);
 
             marker.bindPopup(() => buildPopupContent(station));

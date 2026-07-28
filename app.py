@@ -65,13 +65,32 @@ BAND_COLORS = [
     "#1e40af",  # dark blue  - No Spaces (<=1 dock)
 ]
 
-# "Distribution of Empty Stations" histogram buckets: percent of
-# daytime snapshots a station spent in the "No Bikes" band, bucketed in
-# 10% increments, highest-severity first (left to right).
-EMPTY_DISTRIBUTION_BUCKET_LABELS = [
-    ">90%", "80-90%", "70-80%", "60-70%", "50-60%",
-    "40-50%", "30-40%", "20-30%", "10-20%", "0-10%",
+# "Distribution of Empty Stations" histogram + Empty Station Map share
+# these 6 buckets: percent of daytime snapshots a station spent in the
+# "No Bikes" band, in 10% increments, highest-severity first. Stations
+# below 40% don't appear in either view.
+EMPTY_BUCKET_LABELS = [">90%", "80-90%", "70-80%", "60-70%", "50-60%", "40-50%"]
+
+# Dark-red-to-orange gradient, index-aligned with EMPTY_BUCKET_LABELS.
+# Interpolated between the existing "No Bikes" (#dc2626) and "Limited
+# Bikes" (#f97316) band colors so it reads as the same severity family
+# used elsewhere in the app.
+EMPTY_GRADIENT_COLORS = [
+    "#dc2626", "#e23523", "#e84520", "#ed541c", "#f36419", "#f97316",
 ]
+
+# Fill for stations below the 40% threshold on the Empty Station Map -
+# still located on the map, just visually distinct from the gradient.
+EMPTY_MAP_BELOW_THRESHOLD_COLOR = "#ffffff"
+
+
+def empty_bucket_index(pct_no_bikes):
+    """Which of the 6 EMPTY_BUCKET_LABELS buckets a station's "percent
+    of time with 0-1 bikes" falls into, or None if it's below 40% (not
+    chronically empty enough to appear in either the histogram or the
+    Empty Station Map's gradient)."""
+    idx = min(9, int((100 - pct_no_bikes) // 10))
+    return idx if idx <= 5 else None
 
 
 def classify_band(bikes_available, docks_available):
@@ -199,6 +218,8 @@ def compute_map_bands(per_station):
 
         pct_by_band = {i: round(100 * counts.get(i, 0) / n, 1) for i in range(5)}
 
+        empty_idx = empty_bucket_index(pct_by_band[0])
+
         results.append({
             "station_id": station_id,
             "name": data["name"],
@@ -214,6 +235,7 @@ def compute_map_bands(per_station):
             "pct_just_right": pct_by_band[2],
             "pct_limited_spaces": pct_by_band[3],
             "pct_no_spaces": pct_by_band[4],
+            "empty_gradient_color": EMPTY_GRADIENT_COLORS[empty_idx] if empty_idx is not None else None,
         })
 
     return results
@@ -232,17 +254,17 @@ def compute_band_histogram(map_results):
 
 def compute_empty_distribution_histogram(map_results):
     """"Distribution of Empty Stations": how many stations fall into
-    each bucket of what percent of their daytime snapshots landed in
-    the "No Bikes" band, bucketed in 10% increments from >90%
-    (most chronically empty) down to 0-10%."""
-    buckets = [0] * 10
+    each of the 6 buckets (>90% down to 40-50%) of what percent of their
+    daytime snapshots landed in the "No Bikes" band. Stations below 40%
+    are dropped from this chart entirely."""
+    buckets = [0] * 6
     for r in map_results:
-        pct = r["pct_no_bikes"]
-        idx = min(9, int((100 - pct) // 10))
-        buckets[idx] += 1
+        idx = empty_bucket_index(r["pct_no_bikes"])
+        if idx is not None:
+            buckets[idx] += 1
     return [
-        {"label": EMPTY_DISTRIBUTION_BUCKET_LABELS[i], "count": buckets[i]}
-        for i in range(10)
+        {"label": EMPTY_BUCKET_LABELS[i], "count": buckets[i], "color": EMPTY_GRADIENT_COLORS[i]}
+        for i in range(6)
     ]
 
 
@@ -355,6 +377,9 @@ def api_utility_map():
         "total_stations": len(results),
         "band_labels": BAND_LABELS,
         "band_colors": BAND_COLORS,
+        "empty_bucket_labels": EMPTY_BUCKET_LABELS,
+        "empty_gradient_colors": EMPTY_GRADIENT_COLORS,
+        "empty_below_threshold_color": EMPTY_MAP_BELOW_THRESHOLD_COLOR,
         "earliest_date": get_earliest_date_str(),
     })
 
@@ -375,6 +400,11 @@ def dashboard():
 @app.route("/map")
 def utility_map():
     return render_template("map.html")
+
+
+@app.route("/empty-map")
+def empty_station_map():
+    return render_template("empty_map.html")
 
 
 if __name__ == "__main__":
