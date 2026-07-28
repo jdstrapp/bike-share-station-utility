@@ -77,6 +77,14 @@ function barChart(container, items, opts) {
         col.appendChild(countLabel);
         col.appendChild(bar);
         col.appendChild(label);
+
+        if (item.subLabel) {
+            const sub = document.createElement("div");
+            sub.className = "bar-sublabel";
+            sub.textContent = item.subLabel;
+            col.appendChild(sub);
+        }
+
         container.appendChild(col);
     });
 }
@@ -88,7 +96,7 @@ fetch(SCRIPT_ROOT + "/api/summary")
         document.getElementById("subtitle").textContent = since;
 
         barChart(document.getElementById("band-histogram"), data.band_histogram.map(b => ({
-            label: b.label, count: b.count, color: b.color
+            label: b.label, count: b.count, color: b.color, subLabel: b.range_label
         })));
 
         barChart(document.getElementById("empty-distribution-histogram"), data.empty_distribution_histogram.map(b => ({

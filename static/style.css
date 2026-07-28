@@ -110,6 +110,13 @@ main {
     line-height: 1.2;
 }
 
+.bar-chart .bar-sublabel {
+    font-size: 0.65rem;
+    color: #94a3b8;
+    text-align: center;
+    line-height: 1.2;
+}
+
 table {
     width: 100%;
     border-collapse: collapse;

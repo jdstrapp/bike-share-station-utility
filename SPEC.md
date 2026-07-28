@@ -155,7 +155,11 @@ than the full 5-band picture.
 
 - **"Station Utility Summary" (band histogram):** 5 bars, one per band,
   height = number of stations whose *mode* band is that one. Gives an
-  at-a-glance system health view.
+  at-a-glance system health view. Each bar's x-axis label shows the
+  band name with its bike/dock-count range in brackets below it: "No
+  Bikes (0-1)", "Limited Bikes (2-3)", "Just Right" (no range - it's a
+  conjunction of both sides, not a single count range), "Limited Spaces
+  (2-3)", "No Spaces (0-1)".
 - **"Most Empty Stations":** ranked list of stations by percent of
   daytime snapshots in the "No Bikes" band (`bikes_available <= 1`) —
   matches the same threshold as the "Distribution of Empty Stations"
@@ -171,11 +175,15 @@ than the full 5-band picture.
   threshold are dropped from this chart entirely (they still count
   everywhere else, just not here). Ordered left-to-right from
   most-chronically-empty to least. Bar height = number of stations
-  falling in that bucket, colored with a **dark-red-to-orange gradient**
-  (darkest red at `>90%`, fading to orange at `40-50%`) rather than a
-  single flat color — the same gradient/bucketing is reused for the
-  Empty Station Map (§5b). Surfaces the handful of stations that are
-  essentially *always* empty, not just "often" empty — a sharper cut
+  falling in that bucket, colored with a **dark-red -> red -> orange ->
+  yellow gradient** (darkest red at `>90%`, fading to yellow at
+  `40-50%`) rather than a single flat color. Widened from an initial
+  red-to-orange-only gradient that read as visually indistinct on the
+  small Empty Station Map markers — sweeping across more hue (not just
+  lightness) separates the 6 severity levels much more clearly. Same
+  gradient/bucketing reused for the Empty Station Map (§5b). Surfaces
+  the handful of stations that are essentially *always* empty, not just
+  "often" empty — a sharper cut
   than the ranked list above.
 - Each list/summary should show total station count and the "since"
   earliest snapshot date, so viewers understand how much data backs the

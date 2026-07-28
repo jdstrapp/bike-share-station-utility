@@ -57,6 +57,10 @@ BAND_LABELS = [
     "Limited Spaces",
     "No Spaces",
 ]
+# Bike/dock-count range shown in brackets under each bar on the "Station
+# Utility Summary" histogram. "Just Right" has no single range (it's a
+# conjunction of both sides), so it's left blank.
+BAND_RANGE_LABELS = ["(0-1)", "(2-3)", "", "(2-3)", "(0-1)"]
 BAND_COLORS = [
     "#dc2626",  # dark red   - No Bikes (<=1 bike)
     "#f97316",  # orange     - Limited Bikes (2-3 bikes)
@@ -71,14 +75,13 @@ BAND_COLORS = [
 # below 40% don't appear in either view.
 EMPTY_BUCKET_LABELS = [">90%", "80-90%", "70-80%", "60-70%", "50-60%", "40-50%"]
 
-# Dark-red-to-orange gradient, index-aligned with EMPTY_BUCKET_LABELS.
-# Deliberately does NOT match the "No Bikes"/"Limited Bikes" band colors
-# used elsewhere - this ramp needs its own much darker starting red and
-# wider steps so all 6 severity levels stay visually distinct (validated
-# with the dataviz skill's palette checker: CVD-safe, no adjacent pair
-# below the "hard to tell apart" floor).
+# Dark-red -> red -> orange -> yellow gradient, index-aligned with
+# EMPTY_BUCKET_LABELS. Widened from an earlier red-to-orange-only
+# version that was too hard to tell apart on the small map markers -
+# sweeping across more hue (not just lightness) gives much better
+# separation. Validated with the dataviz skill's palette checker.
 EMPTY_GRADIENT_COLORS = [
-    "#5c0f0f", "#8a1c12", "#b32e0f", "#d44c0d", "#ee720f", "#ffa726",
+    "#630303", "#9d1307", "#ce3d09", "#f77808", "#f9b224", "#f7d83b",
 ]
 
 # Fill for stations below the 40% threshold on the Empty Station Map -
@@ -249,7 +252,13 @@ def compute_band_histogram(map_results):
     already in left-to-right (No Bikes -> No Spaces) order."""
     counts = Counter(r["band_index"] for r in map_results)
     return [
-        {"band_index": i, "label": BAND_LABELS[i], "color": BAND_COLORS[i], "count": counts.get(i, 0)}
+        {
+            "band_index": i,
+            "label": BAND_LABELS[i],
+            "range_label": BAND_RANGE_LABELS[i],
+            "color": BAND_COLORS[i],
+            "count": counts.get(i, 0),
+        }
         for i in range(5)
     ]
 
