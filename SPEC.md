@@ -158,8 +158,8 @@ than the full 5-band picture.
   at-a-glance system health view.
 - **"Most Empty Stations":** ranked list of stations by percent of
   daytime snapshots in the "No Bikes" band (`bikes_available <= 1`) —
-  matches the same threshold as the "Worst of the Worst" histogram
-  below, so a station ranks consistently across both views. Column
+  matches the same threshold as the "Distribution of Empty Stations"
+  histogram below, so a station ranks consistently across both views. Column
   titled **"% Time Empty"** (top N, e.g. 15).
 - **"Most Full Stations":** ranked list of stations by percent of
   daytime snapshots in the "No Spaces" band (`docks_available <= 1`).

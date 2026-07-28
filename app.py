@@ -72,11 +72,13 @@ BAND_COLORS = [
 EMPTY_BUCKET_LABELS = [">90%", "80-90%", "70-80%", "60-70%", "50-60%", "40-50%"]
 
 # Dark-red-to-orange gradient, index-aligned with EMPTY_BUCKET_LABELS.
-# Interpolated between the existing "No Bikes" (#dc2626) and "Limited
-# Bikes" (#f97316) band colors so it reads as the same severity family
-# used elsewhere in the app.
+# Deliberately does NOT match the "No Bikes"/"Limited Bikes" band colors
+# used elsewhere - this ramp needs its own much darker starting red and
+# wider steps so all 6 severity levels stay visually distinct (validated
+# with the dataviz skill's palette checker: CVD-safe, no adjacent pair
+# below the "hard to tell apart" floor).
 EMPTY_GRADIENT_COLORS = [
-    "#dc2626", "#e23523", "#e84520", "#ed541c", "#f36419", "#f97316",
+    "#5c0f0f", "#8a1c12", "#b32e0f", "#d44c0d", "#ee720f", "#ffa726",
 ]
 
 # Fill for stations below the 40% threshold on the Empty Station Map -
