@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3/dist/chartjs-plugin-annotation.min.js"></script>
 </head>
 <body>
 
@@ -205,9 +206,29 @@ function renderRank(detail) {
 function renderLineChart(fullHistory) {
     const points = fullHistory.points.map(p => ({ x: new Date(p.t), y: p.bikes_available }));
     const gapMs = fullHistory.gap_threshold_minutes * 60 * 1000;
-    const capacityPoints = points.length > 0
-        ? [{ x: points[0].x, y: fullHistory.capacity }, { x: points[points.length - 1].x, y: fullHistory.capacity }]
-        : [];
+
+    // Horizontal background bands for the 5 status categories (e.g. "No
+    // Bikes 0-1") replace the old capacity reference line - the bands
+    // themselves end exactly at capacity, so a separate line is redundant.
+    const annotations = {};
+    fullHistory.bands.forEach((b, i) => {
+        annotations[`band${i}`] = {
+            type: "box",
+            yMin: b.y_min,
+            yMax: b.y_max + 1, // +1 so adjacent bands touch with no gap at integer boundaries
+            backgroundColor: b.color + "40", // background only - kept subtle so the line stays dominant
+            borderWidth: 0,
+            drawTime: "beforeDatasetsDraw",
+            label: {
+                display: true,
+                content: `${b.band_label}`,
+                position: { x: "start", y: "center" },
+                color: "#1f2937",
+                font: { size: 10 },
+                backgroundColor: "transparent",
+            },
+        };
+    });
 
     new Chart(document.getElementById("sd-line-chart"), {
         type: "line",
@@ -216,18 +237,10 @@ function renderLineChart(fullHistory) {
                 {
                     label: "Bikes Available",
                     data: points,
-                    borderColor: "#2563eb",
-                    borderWidth: 1.5,
+                    borderColor: "#000000",
+                    borderWidth: 2,
                     pointRadius: 0,
                     segment: { skip: (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x) > gapMs },
-                },
-                {
-                    label: "Capacity",
-                    data: capacityPoints,
-                    borderColor: "#94a3b8",
-                    borderWidth: 1,
-                    borderDash: [4, 4],
-                    pointRadius: 0,
                 },
             ],
         },
@@ -238,13 +251,18 @@ function renderLineChart(fullHistory) {
             interaction: { mode: "nearest", axis: "x", intersect: false },
             scales: {
                 x: { type: "time", time: { unit: "day" } },
-                y: { beginAtZero: true, title: { display: true, text: "Bikes" } },
+                y: {
+                    min: 0,
+                    max: fullHistory.capacity,
+                    title: { display: true, text: "Bikes" },
+                },
             },
             plugins: {
                 zoom: {
                     zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: "x" },
                     pan: { enabled: true, mode: "x" },
                 },
+                annotation: { annotations },
             },
         },
     });

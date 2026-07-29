@@ -462,12 +462,46 @@ def compute_station_detail(station_id):
     }
 
 
+def compute_capacity_bands(capacity):
+    """Contiguous bikes-available y-ranges for each of the 5 bands, given
+    a station's capacity - used to draw horizontal background bands on
+    the full-history line graph (SPEC.md SS5c item 4). Walks the same
+    classify_band(x, capacity - x) calls compute_station_histogram makes
+    per bar, just grouped into contiguous runs instead of one-per-bar."""
+    if not capacity or capacity <= 0:
+        return []
+
+    runs = []
+    current_band, start = None, 0
+    for x in range(capacity + 1):
+        band = classify_band(x, capacity - x)
+        if band != current_band:
+            if current_band is not None:
+                runs.append((current_band, start, x - 1))
+            current_band, start = band, x
+    runs.append((current_band, start, capacity))
+
+    return [
+        {
+            "band_index": band,
+            "band_label": BAND_LABELS[band],
+            "color": BAND_COLORS[band],
+            "y_min": lo,
+            "y_max": hi,
+        }
+        for band, lo, hi in runs
+    ]
+
+
 def compute_station_full_history(station_id):
     """Full-history line graph data (SPEC.md SS5c item 4): every
     observation ever recorded for this station, NOT restricted to the
     daytime window (unlike everything else in the app). Gap-breaking
     (>90min since the previous point) is left to the frontend chart,
-    which has the real timestamps to work with."""
+    which has the real timestamps to work with. Also returns the
+    capacity-based band ranges for the chart's background bands - the
+    capacity reference line was dropped in favor of these, since the
+    bands themselves end exactly at capacity."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     station_row = conn.execute(
@@ -500,6 +534,7 @@ def compute_station_full_history(station_id):
         "capacity": station_row["capacity"],
         "gap_threshold_minutes": GAP_THRESHOLD_MINUTES,
         "points": points,
+        "bands": compute_capacity_bands(station_row["capacity"]),
     }
 
 
