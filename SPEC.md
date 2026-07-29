@@ -173,11 +173,35 @@ than the full 5-band picture.
 
 ### 5c. Station History (`/history` — TBD)
 
-Not yet specced. Details to be gathered incrementally.
+Being gathered incrementally. Known so far:
 
-- Known so far: must support being linked to with a station
-  pre-selected (from the Dashboard's Most Empty/Full Stations tables,
-  §6). Everything else — layout, what it shows, URL scheme — TBD.
+- Must support being linked to with a station pre-selected (from the
+  Dashboard's Most Empty/Full Stations tables §6, and both maps' popup
+  station-name links §5a/§5b).
+- **Station picker** at the top of the page — a searchable picklist over
+  1,000+ station names, since names aren't obvious (e.g. "Harvie Ave /
+  Rogers Rd"). Search behavior, in scope now:
+  - **Multi-word substring matching:** typing "Harvie" *or* "Rogers"
+    (any word in the name, not just a prefix) matches "Harvie Ave /
+    Rogers Rd". Local/client-side, no external dependency.
+  - **Intersection-aware parsing:** most station names are formatted as
+    "Street A / Street B". Strip filler words ("corner of", "and") from
+    the query and match remaining terms against a station's two parsed
+    street names — handles "corner of Harvie and Rogers".
+  - Typo-tolerance (fuzzy matching) is a reasonable cheap add-on here,
+    exact approach TBD at implementation time.
+  - **Explicitly out of scope for now:** directional/proximity queries
+    ("Rogers near Caledonia", "Rogers east of Dufferin") — needs real
+    geographic reasoning and would be heuristic/unreliable at best; not
+    worth the complexity relative to the payoff.
+  - **Phase-2 candidate (not now):** neighborhood queries ("Rosedale" →
+    list its stations). Feasible via a **one-time** import of Toronto
+    Open Data's free neighborhood boundary polygons, precomputing which
+    neighborhood each station falls into at import time — no ongoing
+    cost or live external dependency, but real work to build. Revisit
+    after the core picker ships.
+- Everything else — page layout, what it actually shows once a station
+  is selected, URL scheme — still TBD.
 
 ## 6. Dashboard (Landing Page)
 
