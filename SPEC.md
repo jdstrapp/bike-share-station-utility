@@ -166,7 +166,10 @@ than the full 5-band picture.
   visible/located on the map, but visually distinct from the gradient,
   so the chronically-empty stations pop out.
 - Clicking a marker opens the same popup style as the Utility Map
-  (station name + per-station histogram).
+  (station name + per-station histogram), **including**: the clickable
+  station-name link to Station History (§5c), and the auto-pan fix for
+  markers near the top of the screen — both apply here too, not just on
+  the Utility Map.
 
 ### 5c. Station History (`/history` — TBD)
 
