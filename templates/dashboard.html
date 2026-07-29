@@ -14,6 +14,7 @@
         <a href="{{ url_for('dashboard') }}" class="active">Dashboard</a>
         <a href="{{ url_for('utility_map') }}">Utility Map</a>
         <a href="{{ url_for('empty_station_map') }}">Empty Station Map</a>
+        <a href="{{ url_for('station_history') }}">Station History</a>
     </nav>
 </header>
 
@@ -125,7 +126,7 @@ function fillTable(tableId, rows, pctKey) {
     }
     rows.forEach(r => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${r.name}</td><td>${r[pctKey]}%</td><td>${r.n_daytime_snapshots}</td>`;
+        tr.innerHTML = `<td><a href="${SCRIPT_ROOT}/history/${r.station_id}">${r.name}</a></td><td>${r[pctKey]}%</td><td>${r.n_daytime_snapshots}</td>`;
         tbody.appendChild(tr);
     });
 }

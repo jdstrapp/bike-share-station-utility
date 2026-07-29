@@ -88,6 +88,12 @@ EMPTY_GRADIENT_COLORS = [
 # still located on the map, just visually distinct from the gradient.
 EMPTY_MAP_BELOW_THRESHOLD_COLOR = "#ffffff"
 
+# Station History page (SPEC.md SS5c)
+GAP_THRESHOLD_MINUTES = 90  # full-history line graph: break the line past this
+WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]  # Python weekday(): Mon=0
+HEATMAP_HOURS = list(range(DAYTIME_START_HOUR, 24))  # 6..23, daytime only
+HEATMAP_NO_DATA_COLOR = "#e5e7eb"
+
 
 def empty_bucket_index(pct_no_bikes):
     """Which of the 6 EMPTY_BUCKET_LABELS buckets a station's "percent
@@ -96,6 +102,27 @@ def empty_bucket_index(pct_no_bikes):
     Empty Station Map's gradient)."""
     idx = min(9, int((100 - pct_no_bikes) // 10))
     return idx if idx <= 5 else None
+
+
+def interpolate_empty_gradient(pct_no_bikes):
+    """Continuous version of EMPTY_GRADIENT_COLORS for the station
+    heatmap (SPEC.md SS5c), which needs every cell colored across the
+    full 0-100% range - not just the >=40% chronic-severity zone the
+    histogram/map buckets care about. Reuses the same color stops
+    (same "language"), just interpolated continuously: 0% -> the
+    lightest/yellow end, 100% -> the darkest red end."""
+    t = max(0.0, min(1.0, pct_no_bikes / 100))
+    stops = list(reversed(EMPTY_GRADIENT_COLORS))  # [0%..100%] = [light..dark]
+    n = len(stops) - 1
+    pos = t * n
+    i = min(int(pos), n - 1)
+    frac = pos - i
+    r0, g0, b0 = int(stops[i][1:3], 16), int(stops[i][3:5], 16), int(stops[i][5:7], 16)
+    r1, g1, b1 = int(stops[i + 1][1:3], 16), int(stops[i + 1][3:5], 16), int(stops[i + 1][5:7], 16)
+    r = round(r0 + (r1 - r0) * frac)
+    g = round(g0 + (g1 - g0) * frac)
+    b = round(b0 + (b1 - b0) * frac)
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def classify_band(bikes_available, docks_available):
@@ -360,6 +387,202 @@ def compute_station_histogram(station_id):
     }
 
 
+def compute_all_stations_list():
+    """Full station list for the Station History picker (SPEC.md SS5c) -
+    every station with capacity > 0, regardless of how much snapshot
+    history it has (unlike the map/dashboard, which require
+    MIN_SNAPSHOTS). A brand-new station should still be searchable and
+    selectable; its detail page just shows "not enough data yet"."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute("""
+        SELECT station_id, name, lat, lon, capacity
+        FROM stations
+        WHERE capacity IS NOT NULL AND capacity > 0
+        ORDER BY name
+    """).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def compute_station_detail(station_id):
+    """Everything for the Station History page's info card, right-now
+    status, band breakdown, and rank context (SPEC.md SS5c, items 1-3
+    and 7)."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    station_row = conn.execute("""
+        SELECT station_id, name, lat, lon, capacity, is_charging_station
+        FROM stations WHERE station_id = ?
+    """, (station_id,)).fetchone()
+
+    if not station_row:
+        conn.close()
+        return None
+
+    latest = conn.execute("""
+        SELECT polled_at, last_reported, bikes_available, docks_available,
+               is_renting, is_returning, status
+        FROM status_snapshots
+        WHERE station_id = ?
+        ORDER BY polled_at DESC
+        LIMIT 1
+    """, (station_id,)).fetchone()
+    conn.close()
+
+    right_now = None
+    if latest:
+        utc_dt = datetime.fromisoformat(latest["polled_at"])
+        local_dt = utc_dt.astimezone(LOCAL_TZ)
+        right_now = {
+            "bikes_available": latest["bikes_available"],
+            "docks_available": latest["docks_available"],
+            "is_renting": bool(latest["is_renting"]),
+            "is_returning": bool(latest["is_returning"]),
+            "status": latest["status"],
+            "polled_at_local": local_dt.strftime("%Y-%m-%d %I:%M %p"),
+        }
+
+    per_station = get_per_station_data()
+    station_bands = per_station.get(station_id)
+
+    band_breakdown = None
+    if station_bands:
+        bands = station_bands["bands"]
+        n = len(bands)
+        counts = Counter(bands)
+        band_breakdown = {
+            "n_daytime_snapshots": n,
+            "pct_by_band": [round(100 * counts.get(i, 0) / n, 1) for i in range(5)],
+            "meets_minimum": n >= MIN_SNAPSHOTS,
+        }
+
+    rank_empty = rank_full = total_ranked = None
+    if band_breakdown and band_breakdown["meets_minimum"]:
+        map_results = compute_map_bands(per_station)
+        total_ranked = len(map_results)
+        by_empty = sorted(map_results, key=lambda r: r["pct_no_bikes"], reverse=True)
+        by_full = sorted(map_results, key=lambda r: r["pct_no_spaces"], reverse=True)
+        rank_empty = next(i + 1 for i, r in enumerate(by_empty) if r["station_id"] == station_id)
+        rank_full = next(i + 1 for i, r in enumerate(by_full) if r["station_id"] == station_id)
+
+    return {
+        "station_id": station_row["station_id"],
+        "name": station_row["name"],
+        "lat": station_row["lat"],
+        "lon": station_row["lon"],
+        "capacity": station_row["capacity"],
+        "is_charging_station": bool(station_row["is_charging_station"]),
+        "right_now": right_now,
+        "band_breakdown": band_breakdown,
+        "band_labels": BAND_LABELS,
+        "band_colors": BAND_COLORS,
+        "rank_empty": rank_empty,
+        "rank_full": rank_full,
+        "total_ranked": total_ranked,
+    }
+
+
+def compute_station_full_history(station_id):
+    """Full-history line graph data (SPEC.md SS5c item 4): every
+    observation ever recorded for this station, NOT restricted to the
+    daytime window (unlike everything else in the app). Gap-breaking
+    (>90min since the previous point) is left to the frontend chart,
+    which has the real timestamps to work with."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    station_row = conn.execute(
+        "SELECT name, capacity FROM stations WHERE station_id = ?", (station_id,)
+    ).fetchone()
+    if not station_row:
+        conn.close()
+        return None
+
+    rows = conn.execute("""
+        SELECT polled_at, bikes_available
+        FROM status_snapshots
+        WHERE station_id = ?
+        ORDER BY polled_at ASC
+    """, (station_id,)).fetchall()
+    conn.close()
+
+    points = []
+    for r in rows:
+        try:
+            utc_dt = datetime.fromisoformat(r["polled_at"])
+        except ValueError:
+            continue
+        local_dt = utc_dt.astimezone(LOCAL_TZ)
+        points.append({"t": local_dt.isoformat(), "bikes_available": r["bikes_available"]})
+
+    return {
+        "station_id": station_id,
+        "name": station_row["name"],
+        "capacity": station_row["capacity"],
+        "gap_threshold_minutes": GAP_THRESHOLD_MINUTES,
+        "points": points,
+    }
+
+
+def compute_station_heatmap(station_id):
+    """Hour x day-of-week heatmap (SPEC.md SS5c item 6): for each of the
+    7 x 18 (daytime hours only) cells, the percent of that station's
+    daytime snapshots landing in the "No Bikes" band. Colored via the
+    continuous empty-severity gradient (interpolate_empty_gradient)."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    station_row = conn.execute(
+        "SELECT name FROM stations WHERE station_id = ?", (station_id,)
+    ).fetchone()
+    if not station_row:
+        conn.close()
+        return None
+
+    rows = conn.execute("""
+        SELECT polled_at, bikes_available
+        FROM status_snapshots
+        WHERE station_id = ?
+    """, (station_id,)).fetchall()
+    conn.close()
+
+    cells = {(d, h): [0, 0] for d in range(7) for h in HEATMAP_HOURS}  # [total, no_bikes_count]
+
+    for r in rows:
+        try:
+            utc_dt = datetime.fromisoformat(r["polled_at"])
+        except ValueError:
+            continue
+        local_dt = utc_dt.astimezone(LOCAL_TZ)
+        if not (DAYTIME_START_HOUR <= local_dt.hour < DAYTIME_END_HOUR):
+            continue
+        key = (local_dt.weekday(), local_dt.hour)
+        cells[key][0] += 1
+        if r["bikes_available"] <= 1:
+            cells[key][1] += 1
+
+    grid = []
+    for d in range(7):
+        row_cells = []
+        for h in HEATMAP_HOURS:
+            total, no_bikes = cells[(d, h)]
+            if total > 0:
+                pct = round(100 * no_bikes / total, 1)
+                color = interpolate_empty_gradient(pct)
+            else:
+                pct = None
+                color = HEATMAP_NO_DATA_COLOR
+            row_cells.append({"hour": h, "n": total, "pct_no_bikes": pct, "color": color})
+        grid.append({"day_label": WEEKDAY_LABELS[d], "cells": row_cells})
+
+    return {
+        "station_id": station_id,
+        "name": station_row["name"],
+        "hours": HEATMAP_HOURS,
+        "day_labels": WEEKDAY_LABELS,
+        "grid": grid,
+    }
+
+
 @app.route("/api/summary")
 def api_summary():
     per_station = get_per_station_data()
@@ -403,6 +626,35 @@ def api_station_histogram(station_id):
     return jsonify(result)
 
 
+@app.route("/api/stations")
+def api_stations():
+    return jsonify({"stations": compute_all_stations_list()})
+
+
+@app.route("/api/station/<station_id>")
+def api_station_detail(station_id):
+    result = compute_station_detail(station_id)
+    if result is None:
+        return jsonify({"error": "station not found"}), 404
+    return jsonify(result)
+
+
+@app.route("/api/station/<station_id>/full_history")
+def api_station_full_history(station_id):
+    result = compute_station_full_history(station_id)
+    if result is None:
+        return jsonify({"error": "station not found"}), 404
+    return jsonify(result)
+
+
+@app.route("/api/station/<station_id>/heatmap")
+def api_station_heatmap(station_id):
+    result = compute_station_heatmap(station_id)
+    if result is None:
+        return jsonify({"error": "station not found"}), 404
+    return jsonify(result)
+
+
 @app.route("/")
 def dashboard():
     return render_template("dashboard.html")
@@ -416,6 +668,12 @@ def utility_map():
 @app.route("/empty-map")
 def empty_station_map():
     return render_template("empty_map.html")
+
+
+@app.route("/history")
+@app.route("/history/<station_id>")
+def station_history(station_id=None):
+    return render_template("history.html", station_id=station_id)
 
 
 if __name__ == "__main__":

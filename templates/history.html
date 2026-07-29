@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bike Share Station Utility - Station History</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2/dist/chartjs-plugin-zoom.min.js"></script>
+</head>
+<body>
+
+<header>
+    <h1>Bike Share Station Utility</h1>
+    <nav>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('utility_map') }}">Utility Map</a>
+        <a href="{{ url_for('empty_station_map') }}">Empty Station Map</a>
+        <a href="{{ url_for('station_history') }}" class="active">Station History</a>
+    </nav>
+</header>
+
+<main>
+    <div class="card">
+        <h2>Find a Station</h2>
+        <input type="text" id="station-search" class="station-search-input"
+               placeholder="Type a street name, e.g. &quot;Harvie&quot; or &quot;corner of Harvie and Rogers&quot;"
+               autocomplete="off">
+        <div id="station-results" class="station-results"></div>
+    </div>
+
+    <div id="station-detail" style="display:none;">
+
+        <div class="card">
+            <div class="station-detail-header">
+                <div>
+                    <h2 id="sd-name">-</h2>
+                    <p class="subtitle" id="sd-info" style="margin:0;"></p>
+                </div>
+                <div class="quick-links">
+                    <a id="sd-link-utility-map" href="#">View on Utility Map &rarr;</a>
+                    <a id="sd-link-empty-map" href="#">View on Empty Station Map &rarr;</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h2>Right Now</h2>
+                <div id="sd-right-now"></div>
+            </div>
+            <div class="card">
+                <h2>All-Time Status Breakdown</h2>
+                <div id="sd-band-breakdown"></div>
+                <p class="subtitle" id="sd-rank" style="margin-top:0.75rem;"></p>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Full History</h2>
+            <p class="subtitle" style="margin-bottom:0.75rem;">Every observation ever recorded (all hours, not just daytime). Scroll/pinch to zoom, drag to pan.</p>
+            <div style="position:relative; height:320px;">
+                <canvas id="sd-line-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Bike Availability Histogram</h2>
+            <p class="subtitle" style="margin-bottom:0.75rem;">Same histogram shown in the map popups - daytime hours only.</p>
+            <div id="sd-histogram"></div>
+        </div>
+
+        <div class="card">
+            <h2>Hour &times; Day-of-Week Pattern</h2>
+            <p class="subtitle" style="margin-bottom:0.75rem;">Percent of daytime snapshots with 0-1 bikes available, by hour and day of week.</p>
+            <div id="sd-heatmap" style="overflow-x:auto;"></div>
+        </div>
+
+    </div>
+
+    <div id="station-empty-state" class="empty-state" style="display:none;">
+        No station selected yet - search above.
+    </div>
+</main>
+
+<script>
+const SCRIPT_ROOT = "{{ request.script_root }}";
+const PRESELECTED_STATION_ID = {{ station_id|tojson }};
+const FILLER_WORDS = new Set(["corner", "of", "and", "the", "near", "at", "&"]);
+
+let allStations = [];
+
+function searchStations(query) {
+    const words = query.toLowerCase().split(/\s+/).filter(w => w && !FILLER_WORDS.has(w));
+    if (words.length === 0) return [];
+    return allStations
+        .filter(s => {
+            const name = s.name.toLowerCase();
+            return words.every(w => name.includes(w));
+        })
+        .slice(0, 20);
+}
+
+function renderResults(results) {
+    const container = document.getElementById("station-results");
+    container.innerHTML = "";
+    if (results.length === 0) return;
+    results.forEach(s => {
+        const item = document.createElement("div");
+        item.className = "station-result-item";
+        item.textContent = s.name;
+        item.addEventListener("click", () => {
+            window.location.href = `${SCRIPT_ROOT}/history/${s.station_id}`;
+        });
+        container.appendChild(item);
+    });
+}
+
+document.getElementById("station-search").addEventListener("input", (e) => {
+    const query = e.target.value.trim();
+    if (query.length === 0) {
+        document.getElementById("station-results").innerHTML = "";
+        return;
+    }
+    renderResults(searchStations(query));
+});
+
+function barChart(container, items) {
+    const maxCount = Math.max(1, ...items.map(i => i.count));
+    container.innerHTML = "";
+    const chart = document.createElement("div");
+    chart.className = "bar-chart";
+    items.forEach(item => {
+        const col = document.createElement("div");
+        col.className = "bar-col";
+        const countLabel = document.createElement("div");
+        countLabel.className = "bar-count";
+        countLabel.textContent = item.count;
+        const bar = document.createElement("div");
+        bar.className = "bar";
+        bar.style.height = Math.max(2, (item.count / maxCount) * 100) + "%";
+        bar.style.background = item.color;
+        const label = document.createElement("div");
+        label.className = "bar-label";
+        label.textContent = item.label;
+        col.appendChild(countLabel);
+        col.appendChild(bar);
+        col.appendChild(label);
+        chart.appendChild(col);
+    });
+    container.appendChild(chart);
+}
+
+function renderRightNow(rightNow) {
+    const el = document.getElementById("sd-right-now");
+    if (!rightNow) {
+        el.innerHTML = '<div class="empty-state">No data yet.</div>';
+        return;
+    }
+    el.innerHTML = `
+        <table>
+            <tr><td>Bikes available</td><td>${rightNow.bikes_available}</td></tr>
+            <tr><td>Docks available</td><td>${rightNow.docks_available}</td></tr>
+            <tr><td>Status</td><td>${rightNow.status}</td></tr>
+            <tr><td>Renting / Returning</td><td>${rightNow.is_renting ? "Yes" : "No"} / ${rightNow.is_returning ? "Yes" : "No"}</td></tr>
+            <tr><td>As of</td><td>${rightNow.polled_at_local}</td></tr>
+        </table>
+    `;
+}
+
+function renderBandBreakdown(breakdown, bandLabels, bandColors) {
+    const el = document.getElementById("sd-band-breakdown");
+    if (!breakdown) {
+        el.innerHTML = '<div class="empty-state">No data yet.</div>';
+        return;
+    }
+    if (!breakdown.meets_minimum) {
+        el.innerHTML = `<div class="empty-state">Only ${breakdown.n_daytime_snapshots} daytime observations so far - not enough for reliable stats yet (need 5+).</div>`;
+    }
+    let html = '<table>';
+    bandLabels.forEach((label, i) => {
+        html += `<tr><td><span class="swatch" style="background:${bandColors[i]}"></span>${label}</td><td>${breakdown.pct_by_band[i]}%</td></tr>`;
+    });
+    html += '</table>';
+    el.innerHTML += html;
+}
+
+function renderRank(detail) {
+    const el = document.getElementById("sd-rank");
+    if (detail.rank_empty === null) {
+        el.textContent = "Not enough data yet to rank against other stations.";
+        return;
+    }
+    el.textContent = `#${detail.rank_empty} most empty and #${detail.rank_full} most full, out of ${detail.total_ranked} ranked stations.`;
+}
+
+function renderLineChart(fullHistory) {
+    const points = fullHistory.points.map(p => ({ x: new Date(p.t), y: p.bikes_available }));
+    const gapMs = fullHistory.gap_threshold_minutes * 60 * 1000;
+    const capacityPoints = points.length > 0
+        ? [{ x: points[0].x, y: fullHistory.capacity }, { x: points[points.length - 1].x, y: fullHistory.capacity }]
+        : [];
+
+    new Chart(document.getElementById("sd-line-chart"), {
+        type: "line",
+        data: {
+            datasets: [
+                {
+                    label: "Bikes Available",
+                    data: points,
+                    borderColor: "#2563eb",
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    segment: { skip: (ctx) => (ctx.p1.parsed.x - ctx.p0.parsed.x) > gapMs },
+                },
+                {
+                    label: "Capacity",
+                    data: capacityPoints,
+                    borderColor: "#94a3b8",
+                    borderWidth: 1,
+                    borderDash: [4, 4],
+                    pointRadius: 0,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: "nearest", axis: "x", intersect: false },
+            scales: {
+                x: { type: "time", time: { unit: "day" } },
+                y: { beginAtZero: true, title: { display: true, text: "Bikes" } },
+            },
+            plugins: {
+                zoom: {
+                    zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: "x" },
+                    pan: { enabled: true, mode: "x" },
+                },
+            },
+        },
+    });
+}
+
+function renderHeatmap(heatmap) {
+    const container = document.getElementById("sd-heatmap");
+    container.innerHTML = "";
+    const grid = document.createElement("div");
+    grid.className = "heatmap-grid";
+    grid.style.gridTemplateColumns = `50px repeat(${heatmap.hours.length}, 28px)`;
+
+    grid.appendChild(document.createElement("div"));
+    heatmap.hours.forEach(h => {
+        const hcell = document.createElement("div");
+        hcell.className = "heatmap-hour-label";
+        hcell.textContent = h;
+        grid.appendChild(hcell);
+    });
+
+    heatmap.grid.forEach(row => {
+        const dayLabel = document.createElement("div");
+        dayLabel.className = "heatmap-day-label";
+        dayLabel.textContent = row.day_label;
+        grid.appendChild(dayLabel);
+
+        row.cells.forEach(cell => {
+            const c = document.createElement("div");
+            c.className = "heatmap-cell";
+            c.style.background = cell.color;
+            c.title = cell.n > 0
+                ? `${row.day_label} ${cell.hour}:00 - ${cell.pct_no_bikes}% empty (n=${cell.n})`
+                : `${row.day_label} ${cell.hour}:00 - no data`;
+            grid.appendChild(c);
+        });
+    });
+
+    container.appendChild(grid);
+}
+
+function loadStation(stationId) {
+    document.getElementById("station-empty-state").style.display = "none";
+
+    fetch(`${SCRIPT_ROOT}/api/station/${stationId}`)
+        .then(r => r.json())
+        .then(detail => {
+            if (detail.error) {
+                document.getElementById("station-empty-state").style.display = "block";
+                document.getElementById("station-empty-state").textContent = "Station not found.";
+                return;
+            }
+
+            document.getElementById("station-detail").style.display = "block";
+            document.getElementById("sd-name").textContent = detail.name;
+            document.getElementById("sd-info").textContent =
+                `Capacity: ${detail.capacity}` + (detail.is_charging_station ? " - E-bike charging station" : "");
+            document.getElementById("sd-link-utility-map").href = `${SCRIPT_ROOT}/map?station=${stationId}`;
+            document.getElementById("sd-link-empty-map").href = `${SCRIPT_ROOT}/empty-map?station=${stationId}`;
+
+            renderRightNow(detail.right_now);
+            renderBandBreakdown(detail.band_breakdown, detail.band_labels, detail.band_colors);
+            renderRank(detail);
+        });
+
+    fetch(`${SCRIPT_ROOT}/api/station/${stationId}/full_history`)
+        .then(r => r.json())
+        .then(renderLineChart);
+
+    fetch(`${SCRIPT_ROOT}/api/station_histogram/${stationId}`)
+        .then(r => r.json())
+        .then(hist => {
+            if (!hist.bars || hist.bars.length === 0) {
+                document.getElementById("sd-histogram").innerHTML = '<div class="empty-state">No histogram data.</div>';
+                return;
+            }
+            barChart(document.getElementById("sd-histogram"), hist.bars.map(b => ({
+                label: b.bikes, count: b.hours, color: b.color
+            })));
+        });
+
+    fetch(`${SCRIPT_ROOT}/api/station/${stationId}/heatmap`)
+        .then(r => r.json())
+        .then(renderHeatmap);
+}
+
+fetch(`${SCRIPT_ROOT}/api/stations`)
+    .then(r => r.json())
+    .then(data => {
+        allStations = data.stations;
+        if (PRESELECTED_STATION_ID) {
+            loadStation(PRESELECTED_STATION_ID);
+        } else {
+            document.getElementById("station-empty-state").style.display = "block";
+        }
+    });
+</script>
+
+</body>
+</html>

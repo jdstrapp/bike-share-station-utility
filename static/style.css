@@ -139,6 +139,15 @@ th {
 
 tr:last-child td { border-bottom: none; }
 
+table a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+table a:hover {
+    text-decoration: underline;
+}
+
 .pill {
     display: inline-block;
     padding: 0.1rem 0.5rem;
@@ -170,6 +179,11 @@ tr:last-child td { border-bottom: none; }
     border-radius: 3px;
     margin-right: 0.4rem;
     vertical-align: middle;
+}
+
+.legend-title {
+    font-weight: 600;
+    margin-bottom: 0.3rem;
 }
 
 .popup-histogram {
@@ -223,4 +237,83 @@ tr:last-child td { border-bottom: none; }
     color: #94a3b8;
     font-size: 0.9rem;
     padding: 1rem 0;
+}
+
+/* Station History page */
+.station-search-input {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    font-size: 1rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+}
+
+.station-search-input:focus {
+    outline: 2px solid #2563eb;
+    outline-offset: -1px;
+}
+
+.station-results {
+    margin-top: 0.5rem;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.station-result-item {
+    padding: 0.5rem 0.6rem;
+    cursor: pointer;
+    border-radius: 6px;
+    font-size: 0.95rem;
+}
+
+.station-result-item:hover {
+    background: #eff6ff;
+}
+
+.station-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.quick-links {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    font-size: 0.85rem;
+}
+
+.quick-links a {
+    color: #2563eb;
+    text-decoration: none;
+}
+
+.quick-links a:hover {
+    text-decoration: underline;
+}
+
+.heatmap-grid {
+    display: grid;
+    gap: 2px;
+    align-items: center;
+    width: max-content;
+}
+
+.heatmap-hour-label, .heatmap-day-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    text-align: center;
+}
+
+.heatmap-day-label {
+    text-align: right;
+    padding-right: 0.4rem;
+}
+
+.heatmap-cell {
+    width: 28px;
+    height: 22px;
+    border-radius: 3px;
 }

@@ -15,6 +15,7 @@
         <a href="{{ url_for('dashboard') }}">Dashboard</a>
         <a href="{{ url_for('utility_map') }}" class="active">Utility Map</a>
         <a href="{{ url_for('empty_station_map') }}">Empty Station Map</a>
+        <a href="{{ url_for('station_history') }}">Station History</a>
     </nav>
 </header>
 
@@ -30,10 +31,16 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19,
 }).addTo(map);
 
+// Fixed header height the popup auto-pan needs to clear, so a marker
+// near the top of the screen doesn't open a popup whose top (station
+// name) is hidden behind the header.
+const HEADER_CLEARANCE_PX = 80;
+
 const legend = L.control({ position: "bottomright" });
 legend.onAdd = function () {
     const div = L.DomUtil.create("div", "legend");
     div.innerHTML = `
+        <div class="legend-title">Predominant Station Status</div>
         <div><span class="swatch" style="background:#dc2626"></span>No Bikes</div>
         <div><span class="swatch" style="background:#f97316"></span>Limited Bikes</div>
         <div><span class="swatch" style="background:#16a34a"></span>Just Right</div>
@@ -66,7 +73,7 @@ function popupHistogram(bars) {
 function buildPopupContent(station) {
     const container = document.createElement("div");
     container.innerHTML = `
-        <strong>${station.name}</strong><br>
+        <a href="${SCRIPT_ROOT}/history/${station.station_id}" style="font-weight:600;">${station.name}</a><br>
         <span style="font-size:0.8rem;color:#64748b;">
             Usually: ${station.band_label} (${station.mode_pct}% of the time, n=${station.n_daytime_snapshots})
         </span>
@@ -76,6 +83,8 @@ function buildPopupContent(station) {
     `;
     return container;
 }
+
+const markersByStationId = {};
 
 fetch(SCRIPT_ROOT + "/api/utility_map")
     .then(r => r.json())
@@ -89,7 +98,9 @@ fetch(SCRIPT_ROOT + "/api/utility_map")
                 fillOpacity: 0.9,
             }).addTo(map);
 
-            marker.bindPopup(() => buildPopupContent(station));
+            marker.bindPopup(() => buildPopupContent(station), {
+                autoPanPaddingTopLeft: L.point(10, HEADER_CLEARANCE_PX),
+            });
 
             marker.on("popupopen", () => {
                 fetch(`${SCRIPT_ROOT}/api/station_histogram/${station.station_id}`)
@@ -104,7 +115,19 @@ fetch(SCRIPT_ROOT + "/api/utility_map")
                         target.innerHTML = popupHistogram(hist.bars);
                     });
             });
+
+            markersByStationId[station.station_id] = marker;
         });
+
+        // Deep link: ?station=<id> centers the map on that station and
+        // opens its popup (used by Station History's "quick links").
+        const params = new URLSearchParams(window.location.search);
+        const wantedStation = params.get("station");
+        if (wantedStation && markersByStationId[wantedStation]) {
+            const marker = markersByStationId[wantedStation];
+            map.setView(marker.getLatLng(), 16);
+            marker.openPopup();
+        }
     })
     .catch(err => console.error(err));
 </script>
