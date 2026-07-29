@@ -211,20 +211,26 @@ Being gathered incrementally. Known so far:
      Already computed server-side for the map/dashboard; just not shown
      per-station anywhere yet.
   4. **Full-history line graph:** x-axis = **day and hour** (matches the
-     hourly polling cadence), y-axis = **Bikes Available** or
-     **Capacity** at that hour (both series share one y-axis), plotting
-     **every observation ever recorded** for that
-     station (from the first snapshot to the latest) — unlike the
-     histograms elsewhere, this is **not** restricted to the daytime
-     6am-midnight window; overnight data is included. Gaps in the data
-     (missed polls, stale-skip periods, etc.) are left blank rather than
+     hourly polling cadence), y-axis = **Bikes Available**, plotting
+     **every observation ever recorded** for that station (from the
+     first snapshot to the latest) — unlike the histograms elsewhere,
+     this is **not** restricted to the daytime 6am-midnight window;
+     overnight data is included. Gaps in the data (missed polls,
+     stale-skip periods, etc.) are left blank rather than
      interpolated/connected across — no line drawn where there's no
      data. **Gap threshold: >90 minutes** since the previous observation
      breaks the line — comfortably wider than the normal hourly cadence
      so one slightly-late poll doesn't falsely read as a gap, while real
-     missed-poll/downtime periods do. A second, lighter-weight line
-     shows station **capacity** over the same timeline, typically
-     flat/horizontal since capacity rarely changes.
+     missed-poll/downtime periods do. The line itself is drawn **black
+     and thick (2px)** so it stays visually dominant.
+     - **Horizontal background bands** for the 5 status categories (e.g.
+       "No Bikes 0-1"), computed the same way as the bike-count
+       histogram's per-bar coloring (`classify_band(x, capacity - x)`
+       for each possible bike count, grouped into contiguous ranges) -
+       subtle/low-opacity so they read as background, not competing with
+       the line. These replace a separate capacity reference line: the
+       top band ends exactly at capacity, so a dedicated line for it
+       would be redundant.
      - **Zoom/pan controls from the start** — as the dataset grows to
        weeks/months of hourly points, a static full-range view would get
        unreadable. Built in now rather than retrofitted later.
@@ -232,11 +238,11 @@ Being gathered incrementally. Known so far:
        *current* capacity (overwritten on every poll via upsert), not a
        history of capacity changes. If a station's capacity actually
        changed over time, we can't currently reconstruct what it was at
-       each past point — the capacity line could only be drawn as a
-       flat line at today's known value, not a true historical line.
-       Flagging this now; may need a schema change (e.g. only update
-       stored capacity when it changes, with a timestamp) if accurate
-       historical capacity turns out to matter.
+       each past point — the background bands reflect today's known
+       capacity across the whole chart, not true historical capacity per
+       point. Flagging this now; may need a schema change (e.g. only
+       update stored capacity when it changes, with a timestamp) if
+       accurate historical capacity turns out to matter.
   5. **Per-station bike-count histogram** — identical to the one shown
      in the Utility Map / Empty Station Map popups (§5a): x-axis = bike
      count 0 to capacity, y-axis = daytime hours observed at that count,
