@@ -111,10 +111,14 @@ across all its daytime snapshots collected so far. Stations need a
 minimum sample size (5+ daytime snapshots) before they're included in
 any ranking or the map, to avoid noisy single-observation results.
 
-## 5. Map Pages
+## 5. Pages
 
-Nav bar has three items: **Dashboard**, **Utility Map**, **Empty Station
-Map**.
+Nav bar has four items: **Dashboard**, **Utility Map**, **Empty Station
+Map**, **Station History**. The first three are specced below (5a/5b);
+Station History (5c) is new for v2 and its spec is being gathered
+incrementally over the next few days — details TBD, filled in as they
+arrive. No implementation starts until the whole v2 spec (including this
+page) is reviewed and approved.
 
 ### 5a. Utility Map (`/map`)
 
@@ -154,6 +158,14 @@ than the full 5-band picture.
 - Clicking a marker opens the same popup style as the Utility Map
   (station name + per-station histogram).
 
+### 5c. Station History (`/history` — TBD)
+
+Not yet specced. Details to be gathered incrementally.
+
+- Known so far: must support being linked to with a station
+  pre-selected (from the Dashboard's Most Empty/Full Stations tables,
+  §6). Everything else — layout, what it shows, URL scheme — TBD.
+
 ## 6. Dashboard (Landing Page)
 
 - **"Station Utility Summary" (band histogram):** 5 bars, one per band,
@@ -171,6 +183,9 @@ than the full 5-band picture.
 - **"Most Full Stations":** ranked list of stations by percent of
   daytime snapshots in the "No Spaces" band (`docks_available <= 1`).
   Column titled **"% Time Full"** (top N).
+- **Station names in both tables are clickable**, linking to the Station
+  History page (§5c) with that station pre-selected. (Exact URL/query
+  param scheme TBD alongside the rest of §5c's spec.)
 - **"Distribution of Empty Stations" histogram:** how many stations fall
   into each bucket of what percent of their daytime snapshots landed in
   the "No Bikes" band (`bikes_available <= 1`). **Only shows the 6
