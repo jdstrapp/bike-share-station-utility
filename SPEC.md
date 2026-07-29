@@ -200,8 +200,19 @@ Being gathered incrementally. Known so far:
     neighborhood each station falls into at import time — no ongoing
     cost or live external dependency, but real work to build. Revisit
     after the core picker ships.
-- **Once a station is selected, show two graphs below the picker:**
-  1. **Full-history line graph:** x-axis = **day and hour** (matches the
+- **Once a station is selected, show everything we know about it:**
+  1. **Info card:** name, capacity, lat/lon, and whether it's an
+     **e-bike charging station** (`is_charging_station` — already in
+     the schema, not currently surfaced anywhere in the app).
+  2. **Right-now status:** current bikes/docks available, when it last
+     reported (`last_reported`), in-service status. A deliberate small
+     exception to the "no live view" decision (§1) — scoped to a single
+     station's detail page, not a live system-wide view.
+  3. **This station's 5-band breakdown** — % No Bikes / Limited Bikes /
+     Just Right / Limited Spaces / No Spaces, all-time. Already computed
+     server-side for the map/dashboard; just not shown per-station
+     anywhere yet.
+  4. **Full-history line graph:** x-axis = **day and hour** (matches the
      hourly polling cadence), y-axis = **Bikes Available** or
      **Capacity** at that hour (both series share one y-axis), plotting
      **every observation ever recorded** for that
@@ -222,11 +233,21 @@ Being gathered incrementally. Known so far:
        Flagging this now; may need a schema change (e.g. only update
        stored capacity when it changes, with a timestamp) if accurate
        historical capacity turns out to matter.
-  2. **Per-station bike-count histogram** — identical to the one shown
+  5. **Per-station bike-count histogram** — identical to the one shown
      in the Utility Map / Empty Station Map popups (§5a): x-axis = bike
      count 0 to capacity, y-axis = daytime hours observed at that count,
      bars colored by band, observation-count labels, scrollable past 25
      bars. Same data, just also surfaced here.
+  6. **Hour × day-of-week heatmap, un-cut for this page.** The original
+     spec described a per-station heatmap "available when drilling into
+     an individual station" (§6's now-cut note) — that's this page. Cut
+     from v1 system-wide/dashboard scope for time, but reinstated here
+     specifically, since it's exactly where it was always meant to live.
+  7. **Rank context** — e.g. "#3 most empty station out of 1,054" (and
+     the equivalent for fullness), tying this station's numbers back to
+     where it stands system-wide.
+  8. **Quick links** to view this station centered on the Utility Map
+     and the Empty Station Map.
 - Everything else — page layout, URL scheme — still TBD.
 
 ## 6. Dashboard (Landing Page)
