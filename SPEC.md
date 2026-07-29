@@ -127,7 +127,9 @@ page) is reviewed and approved.
 - Renderer: **Leaflet.js** (free, open-source, no API key required —
   appropriate for a public site with no ongoing map-vendor cost).
 - **Clicking a marker opens a popup showing:**
-  - Station name
+  - Station name — **clickable**, same as the Dashboard's Most
+    Empty/Full Stations tables (§6): links to the Station History page
+    (§5c) with that station pre-selected.
   - A histogram: x-axis = bike count from 0 to the station's capacity;
     y-axis = number of daytime hours observed at that exact count. Each
     bar is colored using the same band classification applied to that
