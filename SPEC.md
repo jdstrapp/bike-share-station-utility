@@ -198,16 +198,18 @@ Being gathered incrementally. Known so far:
   1. **Info card:** name, capacity, lat/lon, and whether it's an
      **e-bike charging station** (`is_charging_station` — already in
      the schema, not currently surfaced anywhere in the app).
-  2. **Right-now status:** current bikes/docks available, when it last
-     reported (`last_reported`), in-service status — pulled from the
-     **latest stored snapshot** (could be up to ~1hr stale, matching the
-     hourly poll cadence), not a live on-demand fetch. Consistent with
-     the "no live view" decision (§1); this is just the most recent data
-     we already have, not a new data source.
-  3. **This station's 5-band breakdown** — % No Bikes / Limited Bikes /
-     Just Right / Limited Spaces / No Spaces, all-time. Already computed
-     server-side for the map/dashboard; just not shown per-station
-     anywhere yet.
+  2. **"Latest Status":** current bikes/docks available, in-service
+     status, and lat/lon — pulled from the **latest stored snapshot**
+     (could be up to ~1hr stale, matching the hourly poll cadence), not
+     a live on-demand fetch. Consistent with the "no live view" decision
+     (§1); this is just the most recent data we already have, not a new
+     data source. The "as of \<time\>" note sits beside the card title,
+     not as its own table row.
+  3. **"All-Time Status Breakdown"** — for each of the 5 bands (No
+     Bikes / Limited Bikes / Just Right / Limited Spaces / No Spaces):
+     a color swatch, the raw **observation count**, and the percent.
+     Already computed server-side for the map/dashboard; just not shown
+     per-station anywhere yet.
   4. **Full-history line graph:** x-axis = **day and hour** (matches the
      hourly polling cadence), y-axis = **Bikes Available** or
      **Capacity** at that hour (both series share one y-axis), plotting
@@ -245,20 +247,26 @@ Being gathered incrementally. Known so far:
      an individual station" (§6's now-cut note) — that's this page. Cut
      from v1 system-wide/dashboard scope for time, but reinstated here
      specifically, since it's exactly where it was always meant to live.
-     **Cell metric: % of daytime snapshots in the "No Bikes" band**
-     (`bikes_available <= 1`) for that hour×day-of-week combination,
-     colored with the same dark-red→red→orange→yellow gradient as the
-     Distribution of Empty Stations histogram / Empty Station Map (§6,
-     §5b) — reuses an existing color language instead of introducing a
-     new one.
+     **Cell metric: the PREDOMINANT (mode) 5-band classification**
+     (`classify_band()` — same logic as everywhere else, considers both
+     bikes and docks) among that station's snapshots at that hour +
+     day-of-week, colored with the same **BAND_COLORS** as the Bike
+     Availability Histogram (item 5) — reuses the app's main color
+     language rather than the empty-severity gradient. **All 24 hours**
+     (not just the daytime window used elsewhere). "Hour of Day" axis
+     label above the hour row; a legend sits beside the grid.
   7. **Rank context** — e.g. "#3 most empty station out of 1,054" (and
      the equivalent for fullness), tying this station's numbers back to
      where it stands system-wide.
   8. **Quick links** to view this station centered on the Utility Map
      and the Empty Station Map.
-- Exact page layout (ordering/arrangement of the 8 items above) is
-  still open — a reasonable default will be proposed during
-  implementation and can be adjusted from there.
+- **Page layout, top to bottom:** station picker; header (name, info,
+  quick links); the 3 graphs (Full History line graph, Bike Availability
+  Histogram, Hour×Day-of-Week heatmap); then Latest Status and All-Time
+  Status Breakdown side by side at the bottom. Graphs come first
+  deliberately, so they're reachable without scrolling past the two
+  status cards. Card padding/spacing on this page is tightened compared
+  to the other pages, since it stacks many more cards.
 
 ## 6. Dashboard (Landing Page)
 
