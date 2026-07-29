@@ -201,8 +201,10 @@ Being gathered incrementally. Known so far:
     cost or live external dependency, but real work to build. Revisit
     after the core picker ships.
 - **Once a station is selected, show two graphs below the picker:**
-  1. **Full-history line graph:** x-axis = time, y-axis = bikes
-     available, plotting **every observation ever recorded** for that
+  1. **Full-history line graph:** x-axis = **day and hour** (matches the
+     hourly polling cadence), y-axis = **Bikes Available** or
+     **Capacity** at that hour (both series share one y-axis), plotting
+     **every observation ever recorded** for that
      station (from the first snapshot to the latest) — unlike the
      histograms elsewhere, this is **not** restricted to the daytime
      6am-midnight window; overnight data is included. Gaps in the data
