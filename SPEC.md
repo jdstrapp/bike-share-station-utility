@@ -139,6 +139,14 @@ page) is reviewed and approved.
     25 bars. For stations with capacity > 25, the histogram truncates to
     a scrollable/slider view instead of squeezing all bars into the same
     width — keeps individual bars readable regardless of station size.
+- **Bug: popup auto-pan doesn't account for the page header.** For a
+  marker near the top of the screen, clicking it opens a popup whose top
+  (station name) is cut off/hidden, and the map doesn't pan far enough
+  down to reveal it — user has to manually pan. Fix: account for the
+  fixed header's height when Leaflet auto-pans to fit the popup (e.g.
+  via `autoPanPaddingTopLeft`), not just its default padding.
+- **Legend needs a title:** "Predominant Station Status" (currently just
+  shows the 5 color swatches with no heading).
 
 ### 5b. Empty Station Map (`/empty-map`)
 
