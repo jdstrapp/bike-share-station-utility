@@ -313,7 +313,40 @@ table a:hover {
 }
 
 .heatmap-cell {
-    width: 28px;
-    height: 22px;
+    width: 24px;
+    height: 20px;
     border-radius: 3px;
+}
+
+.heatmap-axis-label {
+    font-size: 0.7rem;
+    color: #64748b;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+}
+
+.heatmap-row {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+}
+
+.heatmap-row .legend {
+    box-shadow: none;
+    padding: 0;
+    background: transparent;
+}
+
+/* Tighter spacing on Station History so the graphs are visible without
+   excessive scrolling - a page with many stacked cards, unlike the
+   dashboard/map pages which each have only a few. */
+.card.compact {
+    padding: 0.85rem 1rem;
+    margin-bottom: 0.85rem;
+}
+
+.card.compact h2 {
+    font-size: 0.95rem;
+    margin: 0 0 0.4rem;
 }

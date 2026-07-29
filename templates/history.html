@@ -22,7 +22,7 @@
 </header>
 
 <main>
-    <div class="card">
+    <div class="card compact">
         <h2>Find a Station</h2>
         <input type="text" id="station-search" class="station-search-input"
                placeholder="Type a street name, e.g. &quot;Harvie&quot; or &quot;corner of Harvie and Rogers&quot;"
@@ -32,7 +32,7 @@
 
     <div id="station-detail" style="display:none;">
 
-        <div class="card">
+        <div class="card compact">
             <div class="station-detail-header">
                 <div>
                     <h2 id="sd-name">-</h2>
@@ -45,36 +45,42 @@
             </div>
         </div>
 
-        <div class="grid-2">
-            <div class="card">
-                <h2>Right Now</h2>
-                <div id="sd-right-now"></div>
-            </div>
-            <div class="card">
-                <h2>All-Time Status Breakdown</h2>
-                <div id="sd-band-breakdown"></div>
-                <p class="subtitle" id="sd-rank" style="margin-top:0.75rem;"></p>
-            </div>
-        </div>
-
-        <div class="card">
+        <div class="card compact">
             <h2>Full History</h2>
-            <p class="subtitle" style="margin-bottom:0.75rem;">Every observation ever recorded (all hours, not just daytime). Scroll/pinch to zoom, drag to pan.</p>
-            <div style="position:relative; height:320px;">
+            <p class="subtitle" style="margin-bottom:0.5rem;">Every observation ever recorded (all hours, not just daytime). Scroll/pinch to zoom, drag to pan.</p>
+            <div style="position:relative; height:280px;">
                 <canvas id="sd-line-chart"></canvas>
             </div>
         </div>
 
-        <div class="card">
+        <div class="card compact">
             <h2>Bike Availability Histogram</h2>
-            <p class="subtitle" style="margin-bottom:0.75rem;">Same histogram shown in the map popups - daytime hours only.</p>
+            <p class="subtitle" style="margin-bottom:0.5rem;">Same histogram shown in the map popups - daytime hours only.</p>
             <div id="sd-histogram"></div>
         </div>
 
-        <div class="card">
+        <div class="card compact">
             <h2>Hour &times; Day-of-Week Pattern</h2>
-            <p class="subtitle" style="margin-bottom:0.75rem;">Percent of daytime snapshots with 0-1 bikes available, by hour and day of week.</p>
-            <div id="sd-heatmap" style="overflow-x:auto;"></div>
+            <p class="subtitle" style="margin-bottom:0.5rem;">Predominant status by hour and day of week (all 24 hours), colored the same as the histogram above.</p>
+            <div class="heatmap-row">
+                <div id="sd-heatmap" style="overflow-x:auto;"></div>
+                <div id="sd-heatmap-legend" class="legend"></div>
+            </div>
+        </div>
+
+        <div class="grid-2">
+            <div class="card compact">
+                <div class="station-detail-header">
+                    <h2 style="margin:0;">Latest Status</h2>
+                    <p class="subtitle" id="sd-as-of" style="margin:0;"></p>
+                </div>
+                <div id="sd-right-now"></div>
+            </div>
+            <div class="card compact">
+                <h2>All-Time Status Breakdown</h2>
+                <div id="sd-band-breakdown"></div>
+                <p class="subtitle" id="sd-rank" style="margin-top:0.5rem;"></p>
+            </div>
         </div>
 
     </div>
@@ -152,8 +158,9 @@ function barChart(container, items) {
     container.appendChild(chart);
 }
 
-function renderRightNow(rightNow) {
+function renderRightNow(rightNow, lat, lon) {
     const el = document.getElementById("sd-right-now");
+    document.getElementById("sd-as-of").textContent = rightNow ? `as of ${rightNow.polled_at_local}` : "";
     if (!rightNow) {
         el.innerHTML = '<div class="empty-state">No data yet.</div>';
         return;
@@ -164,7 +171,7 @@ function renderRightNow(rightNow) {
             <tr><td>Docks available</td><td>${rightNow.docks_available}</td></tr>
             <tr><td>Status</td><td>${rightNow.status}</td></tr>
             <tr><td>Renting / Returning</td><td>${rightNow.is_renting ? "Yes" : "No"} / ${rightNow.is_returning ? "Yes" : "No"}</td></tr>
-            <tr><td>As of</td><td>${rightNow.polled_at_local}</td></tr>
+            <tr><td>Lat / Lon</td><td>${lat.toFixed(5)}, ${lon.toFixed(5)}</td></tr>
         </table>
     `;
 }
@@ -178,11 +185,11 @@ function renderBandBreakdown(breakdown, bandLabels, bandColors) {
     if (!breakdown.meets_minimum) {
         el.innerHTML = `<div class="empty-state">Only ${breakdown.n_daytime_snapshots} daytime observations so far - not enough for reliable stats yet (need 5+).</div>`;
     }
-    let html = '<table>';
+    let html = '<table><thead><tr><th></th><th>Status</th><th>Observations</th><th>%</th></tr></thead><tbody>';
     bandLabels.forEach((label, i) => {
-        html += `<tr><td><span class="swatch" style="background:${bandColors[i]}"></span>${label}</td><td>${breakdown.pct_by_band[i]}%</td></tr>`;
+        html += `<tr><td><span class="swatch" style="background:${bandColors[i]}"></span></td><td>${label}</td><td>${breakdown.count_by_band[i]}</td><td>${breakdown.pct_by_band[i]}%</td></tr>`;
     });
-    html += '</table>';
+    html += '</tbody></table>';
     el.innerHTML += html;
 }
 
@@ -246,9 +253,15 @@ function renderLineChart(fullHistory) {
 function renderHeatmap(heatmap) {
     const container = document.getElementById("sd-heatmap");
     container.innerHTML = "";
+
+    const hourAxisLabel = document.createElement("div");
+    hourAxisLabel.className = "heatmap-axis-label";
+    hourAxisLabel.textContent = "Hour of Day";
+    container.appendChild(hourAxisLabel);
+
     const grid = document.createElement("div");
     grid.className = "heatmap-grid";
-    grid.style.gridTemplateColumns = `50px repeat(${heatmap.hours.length}, 28px)`;
+    grid.style.gridTemplateColumns = `40px repeat(${heatmap.hours.length}, 24px)`;
 
     grid.appendChild(document.createElement("div"));
     heatmap.hours.forEach(h => {
@@ -269,13 +282,20 @@ function renderHeatmap(heatmap) {
             c.className = "heatmap-cell";
             c.style.background = cell.color;
             c.title = cell.n > 0
-                ? `${row.day_label} ${cell.hour}:00 - ${cell.pct_no_bikes}% empty (n=${cell.n})`
+                ? `${row.day_label} ${cell.hour}:00 - ${cell.band_label} (n=${cell.n})`
                 : `${row.day_label} ${cell.hour}:00 - no data`;
             grid.appendChild(c);
         });
     });
 
     container.appendChild(grid);
+
+    const legend = document.getElementById("sd-heatmap-legend");
+    let legendHtml = '<div class="legend-title">Predominant Status</div>';
+    heatmap.band_labels.forEach((label, i) => {
+        legendHtml += `<div><span class="swatch" style="background:${heatmap.band_colors[i]}"></span>${label}</div>`;
+    });
+    legend.innerHTML = legendHtml;
 }
 
 function loadStation(stationId) {
@@ -297,7 +317,7 @@ function loadStation(stationId) {
             document.getElementById("sd-link-utility-map").href = `${SCRIPT_ROOT}/map?station=${stationId}`;
             document.getElementById("sd-link-empty-map").href = `${SCRIPT_ROOT}/empty-map?station=${stationId}`;
 
-            renderRightNow(detail.right_now);
+            renderRightNow(detail.right_now, detail.lat, detail.lon);
             renderBandBreakdown(detail.band_breakdown, detail.band_labels, detail.band_colors);
             renderRank(detail);
         });

@@ -91,7 +91,6 @@ EMPTY_MAP_BELOW_THRESHOLD_COLOR = "#ffffff"
 # Station History page (SPEC.md SS5c)
 GAP_THRESHOLD_MINUTES = 90  # full-history line graph: break the line past this
 WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]  # Python weekday(): Mon=0
-HEATMAP_HOURS = list(range(DAYTIME_START_HOUR, 24))  # 6..23, daytime only
 HEATMAP_NO_DATA_COLOR = "#e5e7eb"
 
 
@@ -102,27 +101,6 @@ def empty_bucket_index(pct_no_bikes):
     Empty Station Map's gradient)."""
     idx = min(9, int((100 - pct_no_bikes) // 10))
     return idx if idx <= 5 else None
-
-
-def interpolate_empty_gradient(pct_no_bikes):
-    """Continuous version of EMPTY_GRADIENT_COLORS for the station
-    heatmap (SPEC.md SS5c), which needs every cell colored across the
-    full 0-100% range - not just the >=40% chronic-severity zone the
-    histogram/map buckets care about. Reuses the same color stops
-    (same "language"), just interpolated continuously: 0% -> the
-    lightest/yellow end, 100% -> the darkest red end."""
-    t = max(0.0, min(1.0, pct_no_bikes / 100))
-    stops = list(reversed(EMPTY_GRADIENT_COLORS))  # [0%..100%] = [light..dark]
-    n = len(stops) - 1
-    pos = t * n
-    i = min(int(pos), n - 1)
-    frac = pos - i
-    r0, g0, b0 = int(stops[i][1:3], 16), int(stops[i][3:5], 16), int(stops[i][5:7], 16)
-    r1, g1, b1 = int(stops[i + 1][1:3], 16), int(stops[i + 1][3:5], 16), int(stops[i + 1][5:7], 16)
-    r = round(r0 + (r1 - r0) * frac)
-    g = round(g0 + (g1 - g0) * frac)
-    b = round(b0 + (b1 - b0) * frac)
-    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def classify_band(bikes_available, docks_available):
@@ -454,6 +432,7 @@ def compute_station_detail(station_id):
         band_breakdown = {
             "n_daytime_snapshots": n,
             "pct_by_band": [round(100 * counts.get(i, 0) / n, 1) for i in range(5)],
+            "count_by_band": [counts.get(i, 0) for i in range(5)],
             "meets_minimum": n >= MIN_SNAPSHOTS,
         }
 
@@ -526,9 +505,10 @@ def compute_station_full_history(station_id):
 
 def compute_station_heatmap(station_id):
     """Hour x day-of-week heatmap (SPEC.md SS5c item 6): for each of the
-    7 x 18 (daytime hours only) cells, the percent of that station's
-    daytime snapshots landing in the "No Bikes" band. Colored via the
-    continuous empty-severity gradient (interpolate_empty_gradient)."""
+    7 x 24 cells (all 24 hours, not just daytime), the PREDOMINANT
+    (most common / mode) 5-band classification among that station's
+    snapshots at that hour+day-of-week - same classify_band() logic and
+    BAND_COLORS used everywhere else in the app (map, histograms)."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     station_row = conn.execute(
@@ -539,13 +519,13 @@ def compute_station_heatmap(station_id):
         return None
 
     rows = conn.execute("""
-        SELECT polled_at, bikes_available
+        SELECT polled_at, bikes_available, docks_available
         FROM status_snapshots
         WHERE station_id = ?
     """, (station_id,)).fetchall()
     conn.close()
 
-    cells = {(d, h): [0, 0] for d in range(7) for h in HEATMAP_HOURS}  # [total, no_bikes_count]
+    cells = {(d, h): [] for d in range(7) for h in range(24)}  # list of band indices
 
     for r in rows:
         try:
@@ -553,32 +533,38 @@ def compute_station_heatmap(station_id):
         except ValueError:
             continue
         local_dt = utc_dt.astimezone(LOCAL_TZ)
-        if not (DAYTIME_START_HOUR <= local_dt.hour < DAYTIME_END_HOUR):
-            continue
-        key = (local_dt.weekday(), local_dt.hour)
-        cells[key][0] += 1
-        if r["bikes_available"] <= 1:
-            cells[key][1] += 1
+        band = classify_band(r["bikes_available"], r["docks_available"])
+        cells[(local_dt.weekday(), local_dt.hour)].append(band)
 
     grid = []
     for d in range(7):
         row_cells = []
-        for h in HEATMAP_HOURS:
-            total, no_bikes = cells[(d, h)]
-            if total > 0:
-                pct = round(100 * no_bikes / total, 1)
-                color = interpolate_empty_gradient(pct)
+        for h in range(24):
+            bands = cells[(d, h)]
+            n = len(bands)
+            if n > 0:
+                mode_band, mode_count = Counter(bands).most_common(1)[0]
+                row_cells.append({
+                    "hour": h, "n": n,
+                    "band_index": mode_band,
+                    "band_label": BAND_LABELS[mode_band],
+                    "color": BAND_COLORS[mode_band],
+                })
             else:
-                pct = None
-                color = HEATMAP_NO_DATA_COLOR
-            row_cells.append({"hour": h, "n": total, "pct_no_bikes": pct, "color": color})
+                row_cells.append({
+                    "hour": h, "n": 0,
+                    "band_index": None, "band_label": None,
+                    "color": HEATMAP_NO_DATA_COLOR,
+                })
         grid.append({"day_label": WEEKDAY_LABELS[d], "cells": row_cells})
 
     return {
         "station_id": station_id,
         "name": station_row["name"],
-        "hours": HEATMAP_HOURS,
+        "hours": list(range(24)),
         "day_labels": WEEKDAY_LABELS,
+        "band_labels": BAND_LABELS,
+        "band_colors": BAND_COLORS,
         "grid": grid,
     }
 
