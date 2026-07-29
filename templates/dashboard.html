@@ -57,6 +57,8 @@ function barChart(container, items, opts) {
     opts = opts || {};
     const maxCount = Math.max(1, ...items.map(i => i.count));
     container.innerHTML = "";
+    const hasSubLabels = items.some(i => i.subLabel);
+
     items.forEach(item => {
         const col = document.createElement("div");
         col.className = "bar-col";
@@ -78,10 +80,13 @@ function barChart(container, items, opts) {
         col.appendChild(bar);
         col.appendChild(label);
 
-        if (item.subLabel) {
+        if (hasSubLabels) {
             const sub = document.createElement("div");
             sub.className = "bar-sublabel";
-            sub.textContent = item.subLabel;
+            // Non-breaking space when this bar has no range (e.g. "Just
+            // Right") so every column has an identical DOM structure and
+            // bars stay bottom-aligned across the whole chart.
+            sub.textContent = item.subLabel || " ";
             col.appendChild(sub);
         }
 
