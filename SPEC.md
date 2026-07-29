@@ -200,8 +200,32 @@ Being gathered incrementally. Known so far:
     neighborhood each station falls into at import time — no ongoing
     cost or live external dependency, but real work to build. Revisit
     after the core picker ships.
-- Everything else — page layout, what it actually shows once a station
-  is selected, URL scheme — still TBD.
+- **Once a station is selected, show two graphs below the picker:**
+  1. **Full-history line graph:** x-axis = time, y-axis = bikes
+     available, plotting **every observation ever recorded** for that
+     station (from the first snapshot to the latest) — unlike the
+     histograms elsewhere, this is **not** restricted to the daytime
+     6am-midnight window; overnight data is included. Gaps in the data
+     (missed polls, stale-skip periods, etc.) are left blank rather than
+     interpolated/connected across — no line drawn where there's no
+     data. A second, lighter-weight line shows station **capacity**
+     over the same timeline, typically flat/horizontal since capacity
+     rarely changes.
+     - **Open caveat:** the current schema only stores each station's
+       *current* capacity (overwritten on every poll via upsert), not a
+       history of capacity changes. If a station's capacity actually
+       changed over time, we can't currently reconstruct what it was at
+       each past point — the capacity line could only be drawn as a
+       flat line at today's known value, not a true historical line.
+       Flagging this now; may need a schema change (e.g. only update
+       stored capacity when it changes, with a timestamp) if accurate
+       historical capacity turns out to matter.
+  2. **Per-station bike-count histogram** — identical to the one shown
+     in the Utility Map / Empty Station Map popups (§5a): x-axis = bike
+     count 0 to capacity, y-axis = daytime hours observed at that count,
+     bars colored by band, observation-count labels, scrollable past 25
+     bars. Same data, just also surfaced here.
+- Everything else — page layout, URL scheme — still TBD.
 
 ## 6. Dashboard (Landing Page)
 
