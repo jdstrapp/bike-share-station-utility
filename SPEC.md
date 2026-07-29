@@ -161,13 +161,17 @@ than the full 5-band picture.
   markers near the top of the screen — both apply here too, not just on
   the Utility Map.
 
-### 5c. Station History (`/history` — TBD)
+### 5c. Station History (`/history/<station_id>`)
 
 Being gathered incrementally. Known so far:
 
+- **URL scheme:** `/history/<station_id>` (path segment, e.g.
+  `/history/7002`). Bare `/history` with no station in the path shows
+  just the picker with nothing selected.
 - Must support being linked to with a station pre-selected (from the
   Dashboard's Most Empty/Full Stations tables §6, and both maps' popup
-  station-name links §5a/§5b).
+  station-name links §5a/§5b) — those links point straight at
+  `/history/<station_id>`.
 - **Station picker** at the top of the page — a searchable picklist over
   1,000+ station names, since names aren't obvious (e.g. "Harvie Ave /
   Rogers Rd"). Search behavior, in scope now:
@@ -195,9 +199,11 @@ Being gathered incrementally. Known so far:
      **e-bike charging station** (`is_charging_station` — already in
      the schema, not currently surfaced anywhere in the app).
   2. **Right-now status:** current bikes/docks available, when it last
-     reported (`last_reported`), in-service status. A deliberate small
-     exception to the "no live view" decision (§1) — scoped to a single
-     station's detail page, not a live system-wide view.
+     reported (`last_reported`), in-service status — pulled from the
+     **latest stored snapshot** (could be up to ~1hr stale, matching the
+     hourly poll cadence), not a live on-demand fetch. Consistent with
+     the "no live view" decision (§1); this is just the most recent data
+     we already have, not a new data source.
   3. **This station's 5-band breakdown** — % No Bikes / Limited Bikes /
      Just Right / Limited Spaces / No Spaces, all-time. Already computed
      server-side for the map/dashboard; just not shown per-station
@@ -211,9 +217,15 @@ Being gathered incrementally. Known so far:
      6am-midnight window; overnight data is included. Gaps in the data
      (missed polls, stale-skip periods, etc.) are left blank rather than
      interpolated/connected across — no line drawn where there's no
-     data. A second, lighter-weight line shows station **capacity**
-     over the same timeline, typically flat/horizontal since capacity
-     rarely changes.
+     data. **Gap threshold: >90 minutes** since the previous observation
+     breaks the line — comfortably wider than the normal hourly cadence
+     so one slightly-late poll doesn't falsely read as a gap, while real
+     missed-poll/downtime periods do. A second, lighter-weight line
+     shows station **capacity** over the same timeline, typically
+     flat/horizontal since capacity rarely changes.
+     - **Zoom/pan controls from the start** — as the dataset grows to
+       weeks/months of hourly points, a static full-range view would get
+       unreadable. Built in now rather than retrofitted later.
      - **Open caveat:** the current schema only stores each station's
        *current* capacity (overwritten on every poll via upsert), not a
        history of capacity changes. If a station's capacity actually
@@ -233,12 +245,20 @@ Being gathered incrementally. Known so far:
      an individual station" (§6's now-cut note) — that's this page. Cut
      from v1 system-wide/dashboard scope for time, but reinstated here
      specifically, since it's exactly where it was always meant to live.
+     **Cell metric: % of daytime snapshots in the "No Bikes" band**
+     (`bikes_available <= 1`) for that hour×day-of-week combination,
+     colored with the same dark-red→red→orange→yellow gradient as the
+     Distribution of Empty Stations histogram / Empty Station Map (§6,
+     §5b) — reuses an existing color language instead of introducing a
+     new one.
   7. **Rank context** — e.g. "#3 most empty station out of 1,054" (and
      the equivalent for fullness), tying this station's numbers back to
      where it stands system-wide.
   8. **Quick links** to view this station centered on the Utility Map
      and the Empty Station Map.
-- Everything else — page layout, URL scheme — still TBD.
+- Exact page layout (ordering/arrangement of the 8 items above) is
+  still open — a reasonable default will be proposed during
+  implementation and can be adjusted from there.
 
 ## 6. Dashboard (Landing Page)
 
@@ -257,9 +277,8 @@ Being gathered incrementally. Known so far:
 - **"Most Full Stations":** ranked list of stations by percent of
   daytime snapshots in the "No Spaces" band (`docks_available <= 1`).
   Column titled **"% Time Full"** (top N).
-- **Station names in both tables are clickable**, linking to the Station
-  History page (§5c) with that station pre-selected. (Exact URL/query
-  param scheme TBD alongside the rest of §5c's spec.)
+- **Station names in both tables are clickable**, linking to
+  `/history/<station_id>` (§5c) with that station pre-selected.
 - **"Distribution of Empty Stations" histogram:** how many stations fall
   into each bucket of what percent of their daytime snapshots landed in
   the "No Bikes" band (`bikes_available <= 1`). **Only shows the 6
@@ -281,8 +300,10 @@ Being gathered incrementally. Known so far:
   earliest snapshot date, so viewers understand how much data backs the
   numbers (a fresh deployment will have thin history at first).
 
-Note: the hour × day-of-week heatmaps (both system-wide and per-station)
-originally planned here are cut from v1 — may revisit later.
+Note: a system-wide hour × day-of-week heatmap was originally planned
+here and cut from v1 for time. Still cut from the Dashboard — but the
+*per-station* version is back, on Station History (§5c) instead, which
+is where it was always meant to live.
 
 ## 7. Tech Stack
 
@@ -290,8 +311,12 @@ originally planned here are cut from v1 — may revisit later.
 - **Database:** SQLite (single file, adequate for this write volume —
   one hourly batch insert — and read-mostly query pattern)
 - **Frontend:** Jinja2-rendered templates + vanilla JS; Leaflet.js for
-  the map; a lightweight charting approach (plain Canvas/SVG or a small
-  library) for histograms — finalized during implementation.
+  the map. **Charting: a small library (e.g. Chart.js via CDN)**,
+  chosen over hand-rolled Canvas/SVG now that Station History needs
+  line graphs (with time gaps) and a heatmap grid in addition to bar
+  charts — meaningfully less hand-written code to get gaps, tooltips,
+  and zoom/pan right. The existing bar charts may or may not get ported
+  to it too; not required, a call for implementation time.
 
 ## 8. Hosting & Deployment
 
